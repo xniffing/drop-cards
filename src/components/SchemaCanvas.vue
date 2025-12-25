@@ -1,25 +1,48 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { useSchemaProvider } from '../composables/useSchema'
+import { ref, provide } from 'vue'
+import { useSchema } from '../composables/useSchema'
 import TableCard from './TableCard.vue'
 import RelationLine from './RelationLine.vue'
 
-const { tables, relations } = useSchemaProvider()
+const { tables, relations } = useSchema()
 
 const canvasRef = ref<HTMLElement | null>(null)
 const isPanning = ref(false)
 const panStart = ref({ x: 0, y: 0 })
 const panOffset = ref({ x: 0, y: 0 })
+const zoom = ref(1)
+const minZoom = 0.25
+const maxZoom = 3
+
+// Provide zoom and panOffset for child components
+provide('canvasZoom', zoom)
+provide('canvasPanOffset', panOffset)
 
 const handleMouseDown = (e: MouseEvent) => {
+  // Middle mouse button (button 1) - allow from anywhere
+  if (e.button === 1) {
+    e.preventDefault()
+    e.stopPropagation()
+    isPanning.value = true
+    panStart.value = { x: e.clientX - panOffset.value.x, y: e.clientY - panOffset.value.y }
+    // Add global listeners for mouse move and up
+    document.addEventListener('mousemove', handleMouseMove)
+    document.addEventListener('mouseup', handleMouseUp)
+    return
+  }
+  
+  // Left click on canvas background
   if (e.target === canvasRef.value) {
     isPanning.value = true
     panStart.value = { x: e.clientX - panOffset.value.x, y: e.clientY - panOffset.value.y }
+    document.addEventListener('mousemove', handleMouseMove)
+    document.addEventListener('mouseup', handleMouseUp)
   }
 }
 
 const handleMouseMove = (e: MouseEvent) => {
   if (isPanning.value) {
+    e.preventDefault()
     panOffset.value = {
       x: e.clientX - panStart.value.x,
       y: e.clientY - panStart.value.y
@@ -27,8 +50,41 @@ const handleMouseMove = (e: MouseEvent) => {
   }
 }
 
-const handleMouseUp = () => {
-  isPanning.value = false
+const handleMouseUp = (e?: MouseEvent) => {
+  if (isPanning.value) {
+    isPanning.value = false
+    document.removeEventListener('mousemove', handleMouseMove)
+    document.removeEventListener('mouseup', handleMouseUp)
+  }
+}
+
+const handleWheel = (e: WheelEvent) => {
+  e.preventDefault()
+  
+  const delta = e.deltaY > 0 ? 0.9 : 1.1
+  const newZoom = Math.max(minZoom, Math.min(maxZoom, zoom.value * delta))
+  
+  if (newZoom === zoom.value) return
+  
+  // Get mouse position relative to canvas
+  const rect = canvasRef.value?.getBoundingClientRect()
+  if (!rect) return
+  
+  const mouseX = e.clientX - rect.left
+  const mouseY = e.clientY - rect.top
+  
+  // Calculate zoom point in canvas coordinates
+  const zoomPointX = (mouseX - panOffset.value.x) / zoom.value
+  const zoomPointY = (mouseY - panOffset.value.y) / zoom.value
+  
+  // Update zoom
+  zoom.value = newZoom
+  
+  // Adjust pan to keep zoom point under mouse
+  panOffset.value = {
+    x: mouseX - zoomPointX * zoom.value,
+    y: mouseY - zoomPointY * zoom.value
+  }
 }
 </script>
 
@@ -40,6 +96,8 @@ const handleMouseUp = () => {
     @mousemove="handleMouseMove"
     @mouseup="handleMouseUp"
     @mouseleave="handleMouseUp"
+    @wheel.prevent="handleWheel"
+    @contextmenu.prevent
   >
     <!-- Grid pattern -->
     <svg class="absolute inset-0 w-full h-full pointer-events-none">
@@ -53,9 +111,9 @@ const handleMouseUp = () => {
 
     <!-- Canvas content -->
     <div
-      class="absolute inset-0"
+      class="absolute inset-0 origin-top-left"
       :style="{
-        transform: `translate(${panOffset.x}px, ${panOffset.y}px)`
+        transform: `translate(${panOffset.x}px, ${panOffset.y}px) scale(${zoom})`
       }"
     >
       <!-- Relations (drawn behind tables) -->

@@ -12,6 +12,7 @@ export interface Table {
   id: string
   name: string
   position: { x: number; y: number }
+  width?: number
   columns: Column[]
 }
 

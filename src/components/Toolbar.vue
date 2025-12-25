@@ -1,13 +1,21 @@
 <script setup lang="ts">
 import { inject } from 'vue'
 
-const addTable = inject('addTable') as () => void
+const addTable = inject<() => void>('addTable')
+
+const handleAddTable = () => {
+  if (addTable) {
+    addTable()
+  } else {
+    console.error('addTable function not found. Make sure useSchemaProvider is called in App.vue')
+  }
+}
 </script>
 
 <template>
   <div class="bg-white border-b border-gray-200 px-4 py-2 flex items-center gap-2">
     <button
-      @click="addTable"
+      @click="handleAddTable"
       class="px-2.5 py-1.5 bg-blue-600 cursor-pointer text-white rounded-lg hover:bg-blue-700 active:bg-blue-800 transition-colors flex items-center justify-center gap-1.5 text-sm font-medium shadow-sm hover:shadow-md"
       type="button"
     >

@@ -1,7 +1,10 @@
 <script setup lang="ts">
-import { ref } from 'vue'
 import SchemaCanvas from './components/SchemaCanvas.vue'
 import Toolbar from './components/Toolbar.vue'
+import { useSchemaProvider } from './composables/useSchema'
+
+// Initialize schema provider
+useSchemaProvider()
 </script>
 
 <template>

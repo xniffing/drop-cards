@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, inject } from 'vue'
 import { useSchema } from '../composables/useSchema'
 import type { Table, Column } from '../types/schema'
+import type { Ref } from 'vue'
 
 const props = defineProps<{
   table: Table
@@ -9,30 +10,75 @@ const props = defineProps<{
 
 const { updateTable, deleteTable, addColumn, updateColumn, deleteColumn } = useSchema()
 
+// Get zoom and panOffset from parent canvas
+const zoom = inject<Ref<number>>('canvasZoom', ref(1))
+const panOffset = inject<Ref<{ x: number; y: number }>>('canvasPanOffset', ref({ x: 0, y: 0 }))
+
+// Convert screen coordinates to world coordinates
+const screenToWorld = (screenX: number, screenY: number) => {
+  return {
+    x: (screenX - panOffset.value.x) / zoom.value,
+    y: (screenY - panOffset.value.y) / zoom.value
+  }
+}
+
 const isDragging = ref(false)
 const dragOffset = ref({ x: 0, y: 0 })
-const isEditing = ref(false)
-const editingColumn = ref<string | null>(null)
+const isResizing = ref(false)
+const resizeStartX = ref(0)
+const resizeStartWidth = ref(0)
 
 const handleMouseDown = (e: MouseEvent) => {
   if ((e.target as HTMLElement).closest('.no-drag')) return
+  if ((e.target as HTMLElement).closest('.resize-handle')) return
 
   isDragging.value = true
+  
+  // Convert screen coordinates to world coordinates
+  const worldPos = screenToWorld(e.clientX, e.clientY)
   dragOffset.value = {
-    x: e.clientX - props.table.position.x,
-    y: e.clientY - props.table.position.y
+    x: worldPos.x - props.table.position.x,
+    y: worldPos.y - props.table.position.y
   }
 
   document.addEventListener('mousemove', handleMouseMove)
   document.addEventListener('mouseup', handleMouseUp)
 }
 
+const handleResizeStart = (e: MouseEvent) => {
+  e.stopPropagation()
+  isResizing.value = true
+  resizeStartX.value = e.clientX
+  resizeStartWidth.value = props.table.width || 280
+
+  document.addEventListener('mousemove', handleResizeMove)
+  document.addEventListener('mouseup', handleResizeEnd)
+}
+
+const handleResizeMove = (e: MouseEvent) => {
+  if (!isResizing.value) return
+
+  // Account for zoom when resizing
+  const deltaX = (e.clientX - resizeStartX.value) / zoom.value
+  const newWidth = Math.max(200, Math.min(600, resizeStartWidth.value + deltaX))
+  
+  updateTable(props.table.id, { width: newWidth })
+}
+
+const handleResizeEnd = () => {
+  isResizing.value = false
+  document.removeEventListener('mousemove', handleResizeMove)
+  document.removeEventListener('mouseup', handleResizeEnd)
+}
+
 const handleMouseMove = (e: MouseEvent) => {
   if (isDragging.value) {
+    // Convert screen coordinates to world coordinates
+    const worldPos = screenToWorld(e.clientX, e.clientY)
     updateTable(props.table.id, {
       position: {
-        x: e.clientX - dragOffset.value.x,
-        y: e.clientY - dragOffset.value.y
+        x: worldPos.x - dragOffset.value.x,
+        y: worldPos.y - dragOffset.value.y
       }
     })
   }
@@ -86,82 +132,135 @@ const getColumnIcon = (column: Column) => {
 
 <template>
   <div
-    class="absolute bg-white rounded-lg shadow-lg border-2 border-gray-300 cursor-move select-none hover:shadow-xl transition-shadow"
+    class="absolute bg-white rounded-lg shadow-lg border-2 border-gray-300 cursor-move select-none hover:shadow-xl transition-shadow overflow-hidden"
     :style="{
       left: `${table.position.x}px`,
       top: `${table.position.y}px`,
-      width: '280px'
+      width: `${table.width || 280}px`
     }"
-    :class="{ 'opacity-80': isDragging }"
+    :class="{ 'opacity-80': isDragging || isResizing }"
     @mousedown="handleMouseDown"
   >
     <!-- Table header -->
-    <div class="bg-blue-600 text-white px-4 py-3 rounded-t-lg flex items-center justify-between">
-      <input
-        v-model="table.name"
-        @input="handleUpdateTableName"
-        class="no-drag bg-transparent border-none outline-none font-semibold text-lg flex-1 text-white placeholder-blue-200"
-        placeholder="table_name"
-      />
+    <div class="bg-blue-600 text-white px-4 py-3 rounded-t-lg flex items-center justify-between gap-2 min-w-0">
+      <div class="flex-1 min-w-0">
+        <label for="table-name" class="block text-xs text-blue-200 mb-1">Table Name</label>
+        <input
+          id="table-name"
+          v-model="table.name"
+          @input="handleUpdateTableName"
+          class="no-drag bg-transparent border-none outline-none font-semibold text-lg w-full text-white placeholder-blue-200"
+          placeholder="table_name"
+        />
+      </div>
       <button
         @click.stop="handleDeleteTable"
-        class="no-drag ml-2 p-1 hover:bg-blue-700 rounded transition-colors"
+        class="no-drag ml-2 p-1.5 hover:bg-blue-700 rounded transition-colors shrink-0 cursor-pointer"
         title="Delete table"
       >
-        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
         </svg>
       </button>
     </div>
 
     <!-- Columns -->
-    <div class="p-2">
+    <div class="p-3">
       <div
         v-for="column in table.columns"
         :key="column.id"
-        class="no-drag flex items-center gap-2 p-2 hover:bg-gray-50 rounded group"
+        class="no-drag group"
       >
-        <span class="text-base">{{ getColumnIcon(column) }}</span>
-        <input
-          v-model="column.name"
-          @input="(e) => handleUpdateColumnName(column.id, e)"
-          class="flex-1 px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-          placeholder="column_name"
-        />
-        <select
-          :value="column.type"
-          @change="(e) => handleUpdateColumnType(column.id, e)"
-          class="px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-        >
-          <option value="integer">integer</option>
-          <option value="varchar">varchar</option>
-          <option value="text">text</option>
-          <option value="boolean">boolean</option>
-          <option value="timestamp">timestamp</option>
-          <option value="date">date</option>
-          <option value="json">json</option>
-        </select>
-        <button
-          @click.stop="() => handleDeleteColumn(column.id)"
-          class="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-100 rounded transition-all"
-          title="Delete column"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-          </svg>
-        </button>
+        <!-- Labels row -->
+        <div class="grid grid-cols-[32px_1fr_100px_32px] gap-2 px-1 mb-1">
+          <div></div>
+          <label :for="`column-name-${column.id}`" class="text-xs text-gray-500">Name</label>
+          <label :for="`column-type-${column.id}`" class="text-xs text-gray-500">Type</label>
+          <div></div>
+        </div>
+        
+        <!-- Inputs row -->
+        <div class="grid grid-cols-[32px_1fr_100px_32px] gap-2 items-center py-2 px-1 hover:bg-gray-50 rounded transition-colors">
+          <!-- Icon column -->
+          <div class="flex items-center justify-center">
+            <span v-if="getColumnIcon(column)" class="text-base" :title="column.primaryKey ? 'Primary Key' : column.unique ? 'Unique' : ''">
+              {{ getColumnIcon(column) }}
+            </span>
+          </div>
+          
+          <!-- Name input -->
+          <input
+            :id="`column-name-${column.id}`"
+            v-model="column.name"
+            @input="(e) => handleUpdateColumnName(column.id, e)"
+            class="w-full px-2 py-1 text-sm text-gray-900 bg-white border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 h-8"
+            placeholder="column_name"
+          />
+          
+          <!-- Type select -->
+          <select
+            :id="`column-type-${column.id}`"
+            :value="column.type"
+            @change="(e) => handleUpdateColumnType(column.id, e)"
+            class="w-full px-2 py-1 text-sm text-gray-900 bg-white border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 h-8"
+          >
+            <option value="integer">integer</option>
+            <option value="varchar">varchar</option>
+            <option value="text">text</option>
+            <option value="boolean">boolean</option>
+            <option value="timestamp">timestamp</option>
+            <option value="date">date</option>
+            <option value="json">json</option>
+          </select>
+          
+          <!-- Delete button -->
+          <div class="flex items-center justify-center">
+            <button
+              @click.stop="() => handleDeleteColumn(column.id)"
+              class="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-all opacity-0 group-hover:opacity-100"
+              title="Delete column"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+              </svg>
+            </button>
+          </div>
+        </div>
       </div>
 
       <!-- Add column button -->
       <button
         @click.stop="handleAddColumn"
-        class="no-drag w-full mt-2 px-3 py-2 text-sm text-blue-600 hover:bg-blue-50 rounded transition-colors flex items-center justify-center gap-1"
+        class="no-drag w-full mt-3 px-3 py-2 text-sm text-blue-600 hover:bg-blue-50 rounded transition-colors flex items-center justify-center gap-1.5 border border-dashed border-gray-300 hover:border-blue-400"
       >
-        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
         </svg>
         Add Column
       </button>
+    </div>
+
+    <!-- Resize handle -->
+    <div
+      class="resize-handle absolute bottom-0 right-0 w-5 h-5 cursor-nwse-resize group"
+      @mousedown.stop="handleResizeStart"
+    >
+      <div class="absolute bottom-0 right-0 w-5 h-5 opacity-50 group-hover:opacity-100 transition-opacity">
+        <div class="absolute bottom-0 right-0 flex flex-col items-end gap-0.5">
+          <div class="flex gap-0.5">
+            <div class="w-1 h-1 bg-gray-400 group-hover:bg-blue-600 rounded-full"></div>
+          </div>
+          <div class="flex gap-0.5">
+            <div class="w-1 h-1 bg-gray-400 group-hover:bg-blue-600 rounded-full"></div>
+            <div class="w-1 h-1 bg-gray-400 group-hover:bg-blue-600 rounded-full"></div>
+          </div>
+          <div class="flex gap-0.5">
+            <div class="w-1 h-1 bg-gray-400 group-hover:bg-blue-600 rounded-full"></div>
+            <div class="w-1 h-1 bg-gray-400 group-hover:bg-blue-600 rounded-full"></div>
+            <div class="w-1 h-1 bg-gray-400 group-hover:bg-blue-600 rounded-full"></div>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </template>
