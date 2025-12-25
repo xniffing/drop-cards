@@ -29,7 +29,6 @@ const path = computed(() => {
 
   // Create a curved path
   const dx = toX - fromX
-  const dy = toY - fromY
   const controlOffset = Math.abs(dx) / 2
 
   return `M ${fromX} ${fromY} C ${fromX + controlOffset} ${fromY}, ${toX - controlOffset} ${toY}, ${toX} ${toY}`

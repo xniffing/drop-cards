@@ -1,5 +1,5 @@
 import { ref, provide, inject } from 'vue'
-import type { Table, Column, Relation, Schema } from '../types/schema'
+import type { Table, Column, Relation } from '../types/schema'
 
 const SCHEMA_KEY = Symbol('schema')
 
@@ -34,7 +34,7 @@ export function useSchemaProvider() {
   const updateTable = (tableId: string, updates: Partial<Table>) => {
     const index = tables.value.findIndex(t => t.id === tableId)
     if (index !== -1) {
-      tables.value[index] = { ...tables.value[index], ...updates }
+      tables.value[index] = { ...tables.value[index], ...updates } as Table
     }
   }
 
@@ -67,7 +67,7 @@ export function useSchemaProvider() {
     if (table) {
       const colIndex = table.columns.findIndex(c => c.id === columnId)
       if (colIndex !== -1) {
-        table.columns[colIndex] = { ...table.columns[colIndex], ...updates }
+        table.columns[colIndex] = { ...table.columns[colIndex], ...updates } as Column
       }
     }
   }

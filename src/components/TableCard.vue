@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, inject } from 'vue'
 import { useSchema } from '../composables/useSchema'
 import type { Table, Column } from '../types/schema'
 
@@ -11,8 +11,11 @@ const { updateTable, deleteTable, addColumn, updateColumn, deleteColumn } = useS
 
 const isDragging = ref(false)
 const dragOffset = ref({ x: 0, y: 0 })
-const isEditing = ref(false)
-const editingColumn = ref<string | null>(null)
+
+// Inject relation drag state
+const relationDragState = inject<any>('relationDragState')
+const isDropTarget = ref(false)
+const hoveredColumnId = ref<string | null>(null)
 
 const handleMouseDown = (e: MouseEvent) => {
   if ((e.target as HTMLElement).closest('.no-drag')) return
@@ -82,6 +85,60 @@ const getColumnIcon = (column: Column) => {
   if (column.unique) return '⭐'
   return ''
 }
+
+// Relation drag handlers
+const handleRelationDragStart = (e: MouseEvent, columnId: string) => {
+  e.stopPropagation()
+  if (!relationDragState) return
+
+  const columnElement = (e.target as HTMLElement).closest('.column-row')
+  if (!columnElement) return
+
+  const rect = columnElement.getBoundingClientRect()
+  const position = {
+    x: props.table.position.x + 280, // Right edge of table card
+    y: props.table.position.y + (rect.top - columnElement.parentElement!.parentElement!.getBoundingClientRect().top) + rect.height / 2
+  }
+
+  relationDragState.startRelationDrag(props.table.id, columnId, position)
+
+  document.addEventListener('mouseup', handleRelationDragEnd)
+}
+
+const handleRelationDragEnd = () => {
+  if (!relationDragState) return
+
+  relationDragState.endRelationDrag()
+  document.removeEventListener('mouseup', handleRelationDragEnd)
+}
+
+const handleColumnMouseEnter = (columnId: string, e: MouseEvent) => {
+  if (!relationDragState?.isCreatingRelation.value) return
+
+  // Don't allow relation to same table
+  if (relationDragState.relationDragSource.value?.tableId === props.table.id) return
+
+  const columnElement = (e.target as HTMLElement).closest('.column-row')
+  if (!columnElement) return
+
+  const rect = columnElement.getBoundingClientRect()
+  const position = {
+    x: props.table.position.x, // Left edge of table card
+    y: props.table.position.y + (rect.top - columnElement.parentElement!.parentElement!.getBoundingClientRect().top) + rect.height / 2
+  }
+
+  isDropTarget.value = true
+  hoveredColumnId.value = columnId
+  relationDragState.setRelationTarget(props.table.id, columnId, position)
+}
+
+const handleColumnMouseLeave = () => {
+  if (!relationDragState?.isCreatingRelation.value) return
+
+  isDropTarget.value = false
+  hoveredColumnId.value = null
+  relationDragState.clearRelationTarget()
+}
 </script>
 
 <template>
@@ -119,9 +176,15 @@ const getColumnIcon = (column: Column) => {
       <div
         v-for="column in table.columns"
         :key="column.id"
-        class="no-drag flex items-center gap-2 p-2 hover:bg-gray-50 rounded group"
+        class="no-drag column-row flex items-center gap-2 p-2 hover:bg-gray-50 rounded group transition-all"
+        :class="{
+          'bg-blue-100 ring-2 ring-blue-400': hoveredColumnId === column.id && isDropTarget,
+          'bg-yellow-50': relationDragState?.relationDragSource.value?.tableId === table.id && relationDragState?.relationDragSource.value?.columnId === column.id
+        }"
+        @mouseenter="(e) => handleColumnMouseEnter(column.id, e)"
+        @mouseleave="handleColumnMouseLeave"
       >
-        <span class="text-base">{{ getColumnIcon(column) }}</span>
+        <span class="text-base w-5">{{ getColumnIcon(column) }}</span>
         <input
           v-model="column.name"
           @input="(e) => handleUpdateColumnName(column.id, e)"
@@ -141,6 +204,18 @@ const getColumnIcon = (column: Column) => {
           <option value="date">date</option>
           <option value="json">json</option>
         </select>
+
+        <!-- Relation drag handle -->
+        <button
+          @mousedown="(e) => handleRelationDragStart(e, column.id)"
+          class="opacity-0 group-hover:opacity-100 p-1 hover:bg-blue-100 rounded transition-all cursor-pointer"
+          title="Create relation from this column"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+          </svg>
+        </button>
+
         <button
           @click.stop="() => handleDeleteColumn(column.id)"
           class="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-100 rounded transition-all"

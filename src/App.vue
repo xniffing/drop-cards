@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { ref } from 'vue'
 import SchemaCanvas from './components/SchemaCanvas.vue'
 import Toolbar from './components/Toolbar.vue'
 </script>
