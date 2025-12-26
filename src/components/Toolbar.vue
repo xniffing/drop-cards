@@ -4,6 +4,7 @@ import { useSchema } from '../composables/useSchema'
 import { useTheme, type ThemeMode } from '../composables/useTheme'
 import ImportModal from './ImportModal.vue'
 import DatabaseModal from './DatabaseModal.vue'
+import HelpModal from './HelpModal.vue'
 
 const addTable = inject<() => void>('addTable')
 const { undo, redo, canUndo, canRedo, exportToDrizzle, importFromDrizzle, databases, currentDatabaseName, newEmptySchema, saveDatabase, loadDatabase, deleteDatabaseById, renameDatabase } = useSchema()
@@ -12,6 +13,7 @@ const { themeMode, setThemeMode } = useTheme()
 const showThemeMenu = ref(false)
 const showImportModal = ref(false)
 const showDatabaseModal = ref(false)
+const showHelpModal = ref(false)
 
 const handleAddTable = () => {
   if (addTable) {
@@ -102,6 +104,14 @@ const handleDatabaseDelete = (id: string) => {
 
 const handleDatabaseCancel = () => {
   showDatabaseModal.value = false
+}
+
+const handleHelp = () => {
+  showHelpModal.value = true
+}
+
+const handleHelpCancel = () => {
+  showHelpModal.value = false
 }
 
 const handleDatabaseNewEmpty = () => {
@@ -244,6 +254,18 @@ onUnmounted(() => {
     </button>
 
     <div class="ml-auto flex items-center gap-2">
+      <button
+        @click="handleHelp"
+        class="px-2.5 py-1.5 bg-gray-100 dark:bg-gray-700 cursor-pointer text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 active:bg-gray-300 dark:active:bg-gray-500 transition-colors flex items-center justify-center gap-1.5 text-sm font-medium shadow-sm hover:shadow-md"
+        type="button"
+        title="Help"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.11 2.09-2.186 2.714-.84.486-1.814 1.05-1.814 2.286m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        <span>Help</span>
+      </button>
+
       <!-- Theme Toggle -->
       <div class="theme-menu-container relative">
         <button
@@ -323,7 +345,6 @@ onUnmounted(() => {
           <span class="font-medium text-gray-800 dark:text-gray-200">DB:</span>
           <span>{{ currentDatabaseName }}</span>
         </span>
-        <span>Drag tables to position • Click to edit • Drag from ports to create relations</span>
       </div>
     </div>
 
@@ -344,6 +365,12 @@ onUnmounted(() => {
       @delete="handleDatabaseDelete"
       @new-empty="handleDatabaseNewEmpty"
       @cancel="handleDatabaseCancel"
+    />
+
+    <!-- Help Modal -->
+    <HelpModal
+      :open="showHelpModal"
+      @cancel="handleHelpCancel"
     />
   </div>
 </template>
