@@ -5,6 +5,7 @@ import type { Relation } from '../types/schema'
 
 const props = defineProps<{
   relation: Relation
+  position?: { x: number; y: number } | null
 }>()
 
 const { tables, updateRelation, deleteRelation, deselectRelation, validateRelation } = useSchema()
@@ -69,7 +70,12 @@ const handleClose = () => {
 
 <template>
   <div
-    class="absolute top-4 right-4 bg-white rounded-lg shadow-xl border-2 border-gray-200 p-4 w-80 z-40"
+    v-if="position"
+    class="absolute bg-white rounded-lg shadow-xl border-2 border-gray-200 p-4 w-80 z-50"
+    :style="{
+      left: `${position.x + 20}px`,
+      top: `${position.y - 100}px`
+    }"
   >
     <div class="flex items-center justify-between mb-4">
       <h3 class="text-lg font-semibold text-gray-900">Edit Relation</h3>

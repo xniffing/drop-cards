@@ -5,6 +5,10 @@
 body {
   font-family: system-ui, -apple-system, sans-serif;
   overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
 }
 
 #app {
@@ -12,4 +16,28 @@ body {
   height: 100vh;
   color: #111827;
   background-color: #f9fafb;
+}
+
+/* Allow text selection in input fields and text areas */
+input,
+textarea,
+select {
+  user-select: text;
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
+}
+
+/* Dialog styling */
+dialog::backdrop {
+  background-color: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(2px);
+}
+
+dialog {
+  max-width: 90vw;
+}
+
+dialog:not([open]) {
+  display: none;
 }

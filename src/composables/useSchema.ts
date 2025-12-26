@@ -106,6 +106,7 @@ export function useSchemaProvider() {
   const tables = ref<Table[]>(previewData.tables)
   const relations = ref<Relation[]>(previewData.relations)
   const selectedRelationId = ref<string | null>(null)
+  const selectedTableIds = ref<Set<string>>(new Set())
   
   // Drag state for relation creation
   const isDragging = ref(false)
@@ -523,10 +524,27 @@ export function useSchemaProvider() {
     return code
   }
 
+  const selectTables = (tableIds: string[]) => {
+    selectedTableIds.value = new Set(tableIds)
+  }
+
+  const clearSelection = () => {
+    selectedTableIds.value.clear()
+  }
+
+  const toggleTableSelection = (tableId: string) => {
+    if (selectedTableIds.value.has(tableId)) {
+      selectedTableIds.value.delete(tableId)
+    } else {
+      selectedTableIds.value.add(tableId)
+    }
+  }
+
   const api = {
     tables,
     relations,
     selectedRelationId,
+    selectedTableIds,
     isDragging,
     dragSource,
     dragPreview,
@@ -546,6 +564,9 @@ export function useSchemaProvider() {
     updateRelation,
     selectRelation,
     deselectRelation,
+    selectTables,
+    clearSelection,
+    toggleTableSelection,
     startDrag,
     endDrag,
     updateDragPreview,

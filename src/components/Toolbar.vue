@@ -41,6 +41,17 @@ const handleExport = () => {
 
 // Keyboard shortcuts
 const handleKeyDown = (e: KeyboardEvent) => {
+  // Don't trigger shortcuts when user is typing in input fields
+  const target = e.target as HTMLElement
+  const isEditable = target.tagName === 'INPUT' || 
+                     target.tagName === 'TEXTAREA' || 
+                     target.isContentEditable ||
+                     target.closest('input, textarea, [contenteditable="true"]')
+  
+  if (isEditable) {
+    return
+  }
+
   // Ctrl+Z or Cmd+Z for undo
   if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
     e.preventDefault()

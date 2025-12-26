@@ -8,11 +8,12 @@ const props = defineProps<{
   table: Table
 }>()
 
-const { updateTable, saveTablePosition, deleteTable, addColumn, updateColumn, saveColumnChanges, deleteColumn, startDrag, endDrag, updateDragPreview, isDragging: isRelationDragging, dragSource, hoveredColumn, setHoveredColumn, relations } = useSchema()
+const { updateTable, saveTablePosition, deleteTable, addColumn, updateColumn, saveColumnChanges, deleteColumn, startDrag, endDrag, updateDragPreview, isDragging: isRelationDragging, dragSource, hoveredColumn, setHoveredColumn, relations, selectedTableIds } = useSchema()
 
 // Get zoom and panOffset from parent canvas
 const zoom = inject<Ref<number>>('canvasZoom', ref(1))
 const panOffset = inject<Ref<{ x: number; y: number }>>('canvasPanOffset', ref({ x: 0, y: 0 }))
+const selectedColumn = inject<Ref<{ tableId: string | null; columnId: string } | null>>('selectedColumn', ref(null))
 
 // Convert screen coordinates to world coordinates
 const screenToWorld = (screenX: number, screenY: number) => {
@@ -33,6 +34,15 @@ const handleMouseDown = (e: MouseEvent) => {
   if ((e.target as HTMLElement).closest('.resize-handle')) return
   if ((e.target as HTMLElement).closest('.column-drop-zone')) return
 
+  // If table is selected and part of multi-select, let canvas handle multi-drag
+  if (selectedTableIds.value.has(props.table.id) && selectedTableIds.value.size > 1) {
+    // Don't stop propagation - let canvas handle multi-drag
+    return
+  }
+  
+  // Single table drag - stop propagation to prevent canvas selection
+  e.stopPropagation()
+  
   isTableDragging.value = true
   
   // Convert screen coordinates to world coordinates
@@ -155,6 +165,10 @@ const handleColumnDragStart = (e: DragEvent, columnId: string) => {
   e.stopPropagation()
   if (!e.dataTransfer) return
   
+  // Mark as dragging to prevent click handler
+  isColumnDragging.value = true
+  columnMouseDownPos.value = null
+  
   startDrag(props.table.id, columnId)
   e.dataTransfer.effectAllowed = 'link'
   e.dataTransfer.setData('text/plain', `${props.table.id}:${columnId}`)
@@ -172,6 +186,11 @@ const handleColumnDragStart = (e: DragEvent, columnId: string) => {
 const handleColumnDragEnd = () => {
   endDrag()
   updateDragPreview(null)
+  // Reset drag state after a short delay to prevent click from firing
+  setTimeout(() => {
+    isColumnDragging.value = false
+    columnMouseDownPos.value = null
+  }, 100)
 }
 
 const handleColumnDragOver = (e: DragEvent, columnId: string) => {
@@ -278,31 +297,40 @@ const isHoveredColumn = (columnId: string) => {
 }
 
 const getColumnStyle = (columnId: string) => {
+  const style: Record<string, string> = {}
+  
+  // Handle hover state (highest priority for interaction)
   if (isHoveredColumn(columnId)) {
-    return {
-      borderColor: '#10b981',
-      backgroundColor: '#f0fdf4',
-      borderWidth: '2px',
-      borderStyle: 'solid'
-    }
+    style.borderColor = '#10b981'
+    style.backgroundColor = '#f0fdf4'
+    style.borderWidth = '2px'
+    style.borderStyle = 'solid'
+  } else if (isDragOverColumn(columnId)) {
+    style.borderColor = '#a855f7'
+    style.backgroundColor = '#faf5ff'
+    style.borderWidth = '2px'
+    style.borderStyle = 'solid'
+  } else if (isColumnConnected(columnId)) {
+    // Keep relation border - this takes priority over selected state for border color
+    style.borderColor = getColumnRelationColor(columnId) || 'transparent'
+    style.backgroundColor = 'transparent'
+    style.borderWidth = '2px'
+    style.borderStyle = 'solid'
+  } else if (isSelectedColumn(columnId)) {
+    // If selected but no relation, show blue border
+    style.borderColor = '#3b82f6'
+    style.backgroundColor = 'transparent'
+    style.borderWidth = '2px'
+    style.borderStyle = 'solid'
   }
-  if (isDragOverColumn(columnId)) {
-    return {
-      borderColor: '#a855f7',
-      backgroundColor: '#faf5ff',
-      borderWidth: '2px',
-      borderStyle: 'solid'
-    }
+  
+  // Add offset outline for selected column (using box-shadow for offset effect)
+  // This works on top of any existing border
+  if (isSelectedColumn(columnId)) {
+    style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.3), 0 0 0 1px rgba(59, 130, 246, 0.5)'
   }
-  if (isColumnConnected(columnId)) {
-    return {
-      borderColor: getColumnRelationColor(columnId) || 'transparent',
-      backgroundColor: 'transparent',
-      borderWidth: '2px',
-      borderStyle: 'solid'
-    }
-  }
-  return {}
+  
+  return style
 }
 
 const getColumnRelationColor = (columnId: string): string | null => {
@@ -333,17 +361,96 @@ const isColumnConnected = (columnId: string) => {
          (r.toTableId === props.table.id && r.toColumnId === columnId)
   )
 }
+
+const isSelectedColumn = (columnId: string) => {
+  if (!selectedColumn.value) return false
+  return selectedColumn.value.tableId === props.table.id &&
+         selectedColumn.value.columnId === columnId
+}
+
+// Column drag detection
+const isColumnDragging = ref(false)
+const columnMouseDownPos = ref<{ x: number; y: number } | null>(null)
+const columnClickThreshold = 5 // pixels
+const tableCardRef = ref<HTMLElement | null>(null)
+
+const handleColumnMouseDown = (e: MouseEvent) => {
+  // Don't track if clicking on inputs, buttons, or during relation drag
+  if ((e.target as HTMLElement).closest('input')) return
+  if ((e.target as HTMLElement).closest('select')) return
+  if ((e.target as HTMLElement).closest('button')) return
+  if (isRelationDragging.value) return
+  
+  columnMouseDownPos.value = { x: e.clientX, y: e.clientY }
+  isColumnDragging.value = false
+  
+  // Add document-level mousemove listener to detect drag
+  const handleMove = (moveEvent: MouseEvent) => {
+    if (columnMouseDownPos.value) {
+      const dx = Math.abs(moveEvent.clientX - columnMouseDownPos.value.x)
+      const dy = Math.abs(moveEvent.clientY - columnMouseDownPos.value.y)
+      if (dx > columnClickThreshold || dy > columnClickThreshold) {
+        isColumnDragging.value = true
+      }
+    }
+  }
+  
+  const handleUp = () => {
+    document.removeEventListener('mousemove', handleMove)
+    document.removeEventListener('mouseup', handleUp)
+  }
+  
+  document.addEventListener('mousemove', handleMove)
+  document.addEventListener('mouseup', handleUp)
+}
+
+const handleColumnClick = (e: MouseEvent, column: Column) => {
+  // Don't open modal if clicking on inputs, buttons, or if it was a drag
+  if ((e.target as HTMLElement).closest('input')) return
+  if ((e.target as HTMLElement).closest('select')) return
+  if ((e.target as HTMLElement).closest('button')) return
+  if (isRelationDragging.value) return
+  if (isColumnDragging.value) {
+    isColumnDragging.value = false
+    columnMouseDownPos.value = null
+    return
+  }
+  
+  // Emit event to parent to show column config modal
+  const event = new CustomEvent('column-config', {
+    detail: {
+      tableId: props.table.id,
+      columnId: column.id
+    },
+    bubbles: true
+  })
+  // Dispatch from table card root to ensure it bubbles to canvas
+  if (tableCardRef.value) {
+    tableCardRef.value.dispatchEvent(event)
+  } else {
+    // Fallback to current target if ref not available
+    e.currentTarget?.dispatchEvent(event)
+  }
+  
+  columnMouseDownPos.value = null
+}
 </script>
 
 <template>
   <div
-    class="absolute bg-white rounded-lg shadow-lg border-2 border-gray-300 cursor-move select-none hover:shadow-xl transition-shadow overflow-hidden"
+    ref="tableCardRef"
+    :data-table-id="table.id"
+    class="absolute bg-white rounded-lg shadow-lg border-2 cursor-move select-none hover:shadow-xl transition-shadow overflow-hidden"
+    :class="{
+      'opacity-80': isTableDragging || isResizing,
+      'border-blue-500 ring-2 ring-blue-300': selectedTableIds.has(table.id),
+      'border-gray-300': !selectedTableIds.has(table.id)
+    }"
     :style="{
       left: `${table.position.x}px`,
       top: `${table.position.y}px`,
       width: `${table.width || 280}px`
     }"
-    :class="{ 'opacity-80': isTableDragging || isResizing }"
     @mousedown="handleMouseDown"
   >
     <!-- Table header -->
@@ -386,12 +493,14 @@ const isColumnConnected = (columnId: string) => {
         
         <!-- Inputs row -->
         <div
-          class="grid grid-cols-[32px_1fr_100px_32px] gap-2 items-center py-2 px-1 hover:bg-gray-50 rounded transition-colors column-drop-zone"
+          class="grid grid-cols-[32px_1fr_100px_32px] gap-2 items-center py-2 px-1 hover:bg-gray-50 rounded transition-colors column-drop-zone cursor-pointer"
           :class="{
-            'border-2': isColumnConnected(column.id) || isDragOverColumn(column.id) || isHoveredColumn(column.id)
+            'border-2': isColumnConnected(column.id) || isDragOverColumn(column.id) || isHoveredColumn(column.id) || isSelectedColumn(column.id)
           }"
           :style="getColumnStyle(column.id)"
           :draggable="true"
+          @click="(e) => handleColumnClick(e, column)"
+          @mousedown="handleColumnMouseDown"
           @dragstart="(e) => handleColumnDragStart(e, column.id)"
           @dragend="handleColumnDragEnd"
           @dragover="(e) => handleColumnDragOver(e, column.id)"
@@ -482,5 +591,6 @@ const isColumnConnected = (columnId: string) => {
         </div>
       </div>
     </div>
+
   </div>
 </template>
