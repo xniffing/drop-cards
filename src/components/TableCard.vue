@@ -440,11 +440,11 @@ const handleColumnClick = (e: MouseEvent, column: Column) => {
   <div
     ref="tableCardRef"
     :data-table-id="table.id"
-    class="absolute bg-white rounded-lg shadow-lg border-2 cursor-move select-none hover:shadow-xl transition-shadow overflow-hidden pointer-events-auto"
+    class="absolute bg-white dark:bg-gray-800 rounded-lg shadow-lg border-2 cursor-move select-none hover:shadow-xl transition-shadow overflow-hidden pointer-events-auto"
     :class="{
       'opacity-80': isTableDragging || isResizing,
-      'border-blue-500 ring-2 ring-blue-300': selectedTableIds.has(table.id),
-      'border-gray-300': !selectedTableIds.has(table.id)
+      'border-blue-500 dark:border-blue-400 ring-2 ring-blue-300 dark:ring-blue-600': selectedTableIds.has(table.id),
+      'border-gray-300 dark:border-gray-600': !selectedTableIds.has(table.id)
     }"
     :style="{
       left: `${table.position.x}px`,
@@ -486,14 +486,14 @@ const handleColumnClick = (e: MouseEvent, column: Column) => {
         <!-- Labels row -->
         <div class="grid grid-cols-[32px_1fr_100px_32px] gap-2 px-1 mb-1">
           <div></div>
-          <label :for="`column-name-${column.id}`" class="text-xs text-gray-500">Name</label>
-          <label :for="`column-type-${column.id}`" class="text-xs text-gray-500">Type</label>
+          <label :for="`column-name-${column.id}`" class="text-xs text-gray-500 dark:text-gray-400">Name</label>
+          <label :for="`column-type-${column.id}`" class="text-xs text-gray-500 dark:text-gray-400">Type</label>
           <div></div>
         </div>
         
         <!-- Inputs row -->
         <div
-          class="grid grid-cols-[32px_1fr_100px_32px] gap-2 items-center py-2 px-1 hover:bg-gray-50 rounded transition-colors column-drop-zone cursor-pointer"
+          class="grid grid-cols-[32px_1fr_100px_32px] gap-2 items-center py-2 px-1 hover:bg-gray-50 dark:hover:bg-gray-700 rounded transition-colors column-drop-zone cursor-pointer"
           :class="{
             'border-2': isColumnConnected(column.id) || isDragOverColumn(column.id) || isHoveredColumn(column.id) || isSelectedColumn(column.id)
           }"
@@ -522,7 +522,7 @@ const handleColumnClick = (e: MouseEvent, column: Column) => {
             v-model="column.name"
             @input="(e) => handleUpdateColumnName(column.id, e)"
             @blur="handleColumnNameBlur"
-            class="w-full px-2 py-1 text-sm text-gray-900 bg-white border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 h-8"
+            class="w-full px-2 py-1 text-sm text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 h-8"
             placeholder="column_name"
           />
           
@@ -531,7 +531,7 @@ const handleColumnClick = (e: MouseEvent, column: Column) => {
             :id="`column-type-${column.id}`"
             :value="column.type"
             @change="(e) => handleUpdateColumnType(column.id, e)"
-            class="w-full px-2 py-1 text-sm text-gray-900 bg-white border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 h-8"
+            class="w-full px-2 py-1 text-sm text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 h-8"
           >
             <option value="integer">integer</option>
             <option value="varchar">varchar</option>
@@ -546,7 +546,7 @@ const handleColumnClick = (e: MouseEvent, column: Column) => {
           <div class="flex items-center justify-center">
             <button
               @click.stop="() => handleDeleteColumn(column.id)"
-              class="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-all opacity-0 group-hover:opacity-100"
+              class="p-1.5 text-gray-400 dark:text-gray-500 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition-all opacity-0 group-hover:opacity-100"
               title="Delete column"
             >
               <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -560,7 +560,7 @@ const handleColumnClick = (e: MouseEvent, column: Column) => {
       <!-- Add column button -->
       <button
         @click.stop="handleAddColumn"
-        class="no-drag w-full mt-3 px-3 py-2 text-sm text-blue-600 hover:bg-blue-50 rounded transition-colors flex items-center justify-center gap-1.5 border border-dashed border-gray-300 hover:border-blue-400"
+        class="no-drag w-full mt-3 px-3 py-2 text-sm text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded transition-colors flex items-center justify-center gap-1.5 border border-dashed border-gray-300 dark:border-gray-600 hover:border-blue-400 dark:hover:border-blue-500"
       >
         <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
           <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
@@ -577,16 +577,16 @@ const handleColumnClick = (e: MouseEvent, column: Column) => {
       <div class="absolute bottom-0 right-0 w-5 h-5 opacity-50 group-hover:opacity-100 transition-opacity">
         <div class="absolute bottom-0 right-0 flex flex-col items-end gap-0.5">
           <div class="flex gap-0.5">
-            <div class="w-1 h-1 bg-gray-400 group-hover:bg-blue-600 rounded-full"></div>
+            <div class="w-1 h-1 bg-gray-400 dark:bg-gray-600 group-hover:bg-blue-600 dark:group-hover:bg-blue-400 rounded-full"></div>
           </div>
           <div class="flex gap-0.5">
-            <div class="w-1 h-1 bg-gray-400 group-hover:bg-blue-600 rounded-full"></div>
-            <div class="w-1 h-1 bg-gray-400 group-hover:bg-blue-600 rounded-full"></div>
+            <div class="w-1 h-1 bg-gray-400 dark:bg-gray-600 group-hover:bg-blue-600 dark:group-hover:bg-blue-400 rounded-full"></div>
+            <div class="w-1 h-1 bg-gray-400 dark:bg-gray-600 group-hover:bg-blue-600 dark:group-hover:bg-blue-400 rounded-full"></div>
           </div>
           <div class="flex gap-0.5">
-            <div class="w-1 h-1 bg-gray-400 group-hover:bg-blue-600 rounded-full"></div>
-            <div class="w-1 h-1 bg-gray-400 group-hover:bg-blue-600 rounded-full"></div>
-            <div class="w-1 h-1 bg-gray-400 group-hover:bg-blue-600 rounded-full"></div>
+            <div class="w-1 h-1 bg-gray-400 dark:bg-gray-600 group-hover:bg-blue-600 dark:group-hover:bg-blue-400 rounded-full"></div>
+            <div class="w-1 h-1 bg-gray-400 dark:bg-gray-600 group-hover:bg-blue-600 dark:group-hover:bg-blue-400 rounded-full"></div>
+            <div class="w-1 h-1 bg-gray-400 dark:bg-gray-600 group-hover:bg-blue-600 dark:group-hover:bg-blue-400 rounded-full"></div>
           </div>
         </div>
       </div>

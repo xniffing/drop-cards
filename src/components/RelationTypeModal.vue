@@ -53,22 +53,22 @@ const handleKeydown = (e: KeyboardEvent) => {
 
 <template>
   <div
-    class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+    class="fixed inset-0 bg-black bg-opacity-50 dark:bg-opacity-70 flex items-center justify-center z-50"
     @click.self="handleCancel"
     @keydown="handleKeydown"
     tabindex="-1"
   >
     <div
-      class="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-6"
+      class="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full mx-4 p-6"
       @click.stop
     >
-      <h2 class="text-xl font-semibold text-gray-900 mb-4">Create Relation</h2>
+      <h2 class="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-4">Create Relation</h2>
       
       <div class="mb-6">
-        <p class="text-sm text-gray-600 mb-2">
+        <p class="text-sm text-gray-600 dark:text-gray-400 mb-2">
           From: <span class="font-medium">{{ fromTableName }}.{{ fromColumnName }}</span>
         </p>
-        <p class="text-sm text-gray-600">
+        <p class="text-sm text-gray-600 dark:text-gray-400">
           To: <span class="font-medium">{{ toTableName }}.{{ toColumnName }}</span>
         </p>
       </div>
@@ -78,17 +78,17 @@ const handleKeydown = (e: KeyboardEvent) => {
           v-for="type in relationTypes"
           :key="type.value"
           class="flex items-start p-3 border-2 rounded-lg cursor-pointer transition-colors"
-          :class="selectedType === type.value ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'"
+          :class="selectedType === type.value ? 'border-blue-500 dark:border-blue-400 bg-blue-50 dark:bg-blue-900/30' : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'"
         >
           <input
             type="radio"
             :value="type.value"
             v-model="selectedType"
-            class="mt-1 mr-3 text-blue-600 focus:ring-blue-500"
+            class="mt-1 mr-3 text-blue-600 dark:text-blue-400 focus:ring-blue-500 dark:focus:ring-blue-400"
           />
           <div class="flex-1">
-            <div class="font-medium text-gray-900">{{ type.label }}</div>
-            <div class="text-sm text-gray-500 mt-1">{{ type.description }}</div>
+            <div class="font-medium text-gray-900 dark:text-gray-100">{{ type.label }}</div>
+            <div class="text-sm text-gray-500 dark:text-gray-400 mt-1">{{ type.description }}</div>
           </div>
         </label>
       </div>
@@ -96,13 +96,13 @@ const handleKeydown = (e: KeyboardEvent) => {
       <div class="flex justify-end gap-3">
         <button
           @click="handleCancel"
-          class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+          class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:focus:ring-blue-400"
         >
           Cancel
         </button>
         <button
           @click="handleConfirm"
-          class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+          class="px-4 py-2 text-sm font-medium text-white bg-blue-600 dark:bg-blue-500 rounded-md hover:bg-blue-700 dark:hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:focus:ring-blue-400"
         >
           Create Relation
         </button>
