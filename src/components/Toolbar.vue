@@ -2,12 +2,16 @@
 import { inject, onMounted, onUnmounted, ref } from 'vue'
 import { useSchema } from '../composables/useSchema'
 import { useTheme, type ThemeMode } from '../composables/useTheme'
+import ImportModal from './ImportModal.vue'
+import DatabaseModal from './DatabaseModal.vue'
 
 const addTable = inject<() => void>('addTable')
-const { undo, redo, canUndo, canRedo, exportToDrizzle } = useSchema()
+const { undo, redo, canUndo, canRedo, exportToDrizzle, importFromDrizzle, databases, currentDatabaseName, newEmptySchema, saveDatabase, loadDatabase, deleteDatabaseById, renameDatabase } = useSchema()
 const { themeMode, setThemeMode } = useTheme()
 
 const showThemeMenu = ref(false)
+const showImportModal = ref(false)
+const showDatabaseModal = ref(false)
 
 const handleAddTable = () => {
   if (addTable) {
@@ -41,6 +45,70 @@ const handleExport = () => {
     document.body.removeChild(textarea)
     alert('Drizzle schema code copied to clipboard!')
   })
+}
+
+const handleImport = () => {
+  showImportModal.value = true
+}
+
+const handleImportConfirm = (code: string) => {
+  const result = importFromDrizzle(code)
+  showImportModal.value = false
+  
+  if (result.success) {
+    alert('Schema imported successfully!')
+  } else {
+    alert(`Failed to import schema: ${result.error || 'Unknown error'}`)
+  }
+}
+
+const handleImportCancel = () => {
+  showImportModal.value = false
+}
+
+const handleDatabases = () => {
+  showDatabaseModal.value = true
+}
+
+const handleDatabaseSave = (name: string) => {
+  const res = saveDatabase(name)
+  if (!res.success) {
+    alert(`Failed to save: ${res.error || 'Unknown error'}`)
+  }
+}
+
+const handleDatabaseLoad = (id: string) => {
+  const res = loadDatabase(id)
+  if (res.success) {
+    showDatabaseModal.value = false
+  } else {
+    alert(`Failed to load: ${res.error || 'Unknown error'}`)
+  }
+}
+
+const handleDatabaseRename = (id: string, name: string) => {
+  const res = renameDatabase(id, name)
+  if (!res.success) {
+    alert(`Failed to rename: ${res.error || 'Unknown error'}`)
+  }
+}
+
+const handleDatabaseDelete = (id: string) => {
+  const res = deleteDatabaseById(id)
+  if (!res.success) {
+    alert(`Failed to delete: ${res.error || 'Unknown error'}`)
+  }
+}
+
+const handleDatabaseCancel = () => {
+  showDatabaseModal.value = false
+}
+
+const handleDatabaseNewEmpty = () => {
+  const ok = confirm('Create a new empty schema? This will replace the current canvas.')
+  if (!ok) return
+  newEmptySchema()
+  showDatabaseModal.value = false
 }
 
 // Keyboard shortcuts
@@ -140,6 +208,18 @@ onUnmounted(() => {
     <div class="h-6 w-px bg-gray-300 dark:bg-gray-600 mx-2"></div>
 
     <button
+      @click="handleImport"
+      class="px-2.5 py-1.5 bg-purple-600 cursor-pointer text-white rounded-lg hover:bg-purple-700 active:bg-purple-800 transition-colors flex items-center justify-center gap-1.5 text-sm font-medium shadow-sm hover:shadow-md"
+      type="button"
+      title="Import from Drizzle Schema"
+    >
+      <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v-2.25A2.25 2.25 0 015.25 12h13.5A2.25 2.25 0 0121 14.25v2.25M3 16.5l3-3m-3 3l3 3M21 16.5l-3-3m3 3l-3 3M16.5 12V9.75m0 0l-3 3m3-3l3 3" />
+      </svg>
+      <span>Import from Drizzle</span>
+    </button>
+
+    <button
       @click="handleExport"
       class="px-2.5 py-1.5 bg-green-600 cursor-pointer text-white rounded-lg hover:bg-green-700 active:bg-green-800 transition-colors flex items-center justify-center gap-1.5 text-sm font-medium shadow-sm hover:shadow-md"
       type="button"
@@ -149,6 +229,18 @@ onUnmounted(() => {
         <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
       </svg>
       <span>Export to Drizzle</span>
+    </button>
+
+    <button
+      @click="handleDatabases"
+      class="px-2.5 py-1.5 bg-indigo-600 cursor-pointer text-white rounded-lg hover:bg-indigo-700 active:bg-indigo-800 transition-colors flex items-center justify-center gap-1.5 text-sm font-medium shadow-sm hover:shadow-md"
+      type="button"
+      title="Saved databases (localStorage)"
+    >
+      <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M4 7a4 4 0 018 0v10a4 4 0 01-8 0V7zm8 0a4 4 0 018 0v10a4 4 0 01-8 0V7z" />
+      </svg>
+      <span>Databases</span>
     </button>
 
     <div class="ml-auto flex items-center gap-2">
@@ -227,8 +319,31 @@ onUnmounted(() => {
       <div class="h-6 w-px bg-gray-300 dark:bg-gray-600 mx-2"></div>
 
       <div class="text-sm text-gray-600 dark:text-gray-400">
+        <span class="mr-3">
+          <span class="font-medium text-gray-800 dark:text-gray-200">DB:</span>
+          <span>{{ currentDatabaseName }}</span>
+        </span>
         <span>Drag tables to position • Click to edit • Drag from ports to create relations</span>
       </div>
     </div>
+
+    <!-- Import Modal -->
+    <ImportModal
+      :open="showImportModal"
+      @confirm="handleImportConfirm"
+      @cancel="handleImportCancel"
+    />
+
+    <!-- Databases Modal -->
+    <DatabaseModal
+      :open="showDatabaseModal"
+      :databases="databases"
+      @save="handleDatabaseSave"
+      @load="handleDatabaseLoad"
+      @rename="handleDatabaseRename"
+      @delete="handleDatabaseDelete"
+      @new-empty="handleDatabaseNewEmpty"
+      @cancel="handleDatabaseCancel"
+    />
   </div>
 </template>
