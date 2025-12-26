@@ -115,6 +115,7 @@ const strokeWidth = computed(() => isSelected.value ? 3 : 2)
       class="pointer-events-auto cursor-pointer"
       :class="{ 'hover:stroke-width-4': !isSelected }"
       @click="handleClick"
+      style="pointer-events: auto;"
     />
   </g>
 </template>

@@ -71,11 +71,20 @@ const handleMouseDown = (e: MouseEvent) => {
   
   // Left click - handle selection box and multi-drag
   if (e.button === 0) {
-    // Check if click is on canvas background or bubbled from a table
-    const isCanvasClick = e.target === canvasRef.value
-    const isTableClick = (e.target as HTMLElement).closest('[data-table-id]')
+    const target = e.target as HTMLElement
+    // Check if click is on canvas background, empty transformed container, or bubbled from a table
+    const isCanvasClick = target === canvasRef.value
+    const isTableClick = target.closest('[data-table-id]')
+    const isTransformedContainer = target.classList.contains('origin-top-left')
+    const isSVG = target.tagName === 'svg' || target.closest('svg')
+    const isRelationPath = target.tagName === 'path' && target.closest('svg')
     
-    if (!isCanvasClick && !isTableClick) return
+    // Allow clicks on canvas, empty transformed container, or tables
+    // But not on SVG elements (relations) unless it's a relation path
+    if (!isCanvasClick && !isTableClick && !isTransformedContainer && !isRelationPath) {
+      // If clicking on SVG background (not a path), allow it
+      if (!isSVG) return
+    }
     
     deselectRelation()
     
@@ -117,8 +126,8 @@ const handleMouseDown = (e: MouseEvent) => {
           })
         }
       })
-    } else if (isCanvasClick) {
-      // Only start selection box on canvas background, not on tables
+    } else if (!clickedTable) {
+      // Start selection box on empty space (canvas background or empty transformed container)
       // Prepare for potential selection box (will start if mouse moves)
       isSelecting.value = false // Will be set to true on first move
       selectionStart.value = { x: worldX, y: worldY }
@@ -474,7 +483,12 @@ const handleWheel = (e: WheelEvent) => {
 <template>
   <div
     ref="canvasRef"
-    class="w-full h-full relative bg-gray-50 overflow-hidden cursor-grab active:cursor-grabbing"
+    class="w-full h-full relative bg-gray-50 overflow-hidden"
+    :class="{
+      'cursor-default': !isSelecting && !isPanning,
+      'cursor-crosshair': isSelecting,
+      'cursor-grab active:cursor-grabbing': isPanning
+    }"
     @mousedown="handleMouseDown"
     @mousemove="handleMouseMove"
     @mouseup="handleMouseUp"
@@ -496,7 +510,7 @@ const handleWheel = (e: WheelEvent) => {
 
     <!-- Canvas content -->
     <div
-      class="absolute inset-0 origin-top-left"
+      class="absolute inset-0 origin-top-left pointer-events-none"
       :style="{
         transform: `translate(${panOffset.x}px, ${panOffset.y}px) scale(${zoom})`
       }"

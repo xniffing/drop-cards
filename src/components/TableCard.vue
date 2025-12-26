@@ -440,7 +440,7 @@ const handleColumnClick = (e: MouseEvent, column: Column) => {
   <div
     ref="tableCardRef"
     :data-table-id="table.id"
-    class="absolute bg-white rounded-lg shadow-lg border-2 cursor-move select-none hover:shadow-xl transition-shadow overflow-hidden"
+    class="absolute bg-white rounded-lg shadow-lg border-2 cursor-move select-none hover:shadow-xl transition-shadow overflow-hidden pointer-events-auto"
     :class="{
       'opacity-80': isTableDragging || isResizing,
       'border-blue-500 ring-2 ring-blue-300': selectedTableIds.has(table.id),
