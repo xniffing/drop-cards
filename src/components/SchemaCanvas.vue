@@ -7,7 +7,7 @@ import RelationTypeModal from './RelationTypeModal.vue'
 import RelationEditor from './RelationEditor.vue'
 import type { Relation } from '../types/schema'
 
-const { tables, relations, isDragging, dragSource, dragPreview, addRelation, validateRelation, endDrag, selectedRelationId, deselectRelation, updateDragPreview } = useSchema()
+const { tables, relations, isDragging, dragSource, dragPreview, addRelation, validateRelation, selectedRelationId, deselectRelation, updateDragPreview } = useSchema()
 
 const selectedRelation = computed(() => {
   if (!selectedRelationId.value) return null
@@ -82,7 +82,7 @@ const handleMouseMove = (e: MouseEvent) => {
   }
 }
 
-const handleMouseUp = (e?: MouseEvent) => {
+const handleMouseUp = () => {
   if (isPanning.value) {
     isPanning.value = false
     document.removeEventListener('mousemove', handleMouseMove)
@@ -128,14 +128,18 @@ const getDragPreviewPath = computed(() => {
   if (!sourceColumn) return ''
   
   const tableWidth = sourceTable.width || 280
-  const headerHeight = 60
-  const columnHeight = 50
+  // Use the same calculation as RelationLine for accurate alignment
+  const headerHeight = 68
   const padding = 12
+  const labelsRowHeight = 20
+  const inputsRowHeight = 48
+  const columnGroupHeight = labelsRowHeight + inputsRowHeight // 68px per column
   const columnIndex = sourceTable.columns.findIndex(c => c.id === dragSource.value!.columnId)
   
-  // Calculate source column position (right edge of table)
+  // Calculate source column position (right edge of table) - matching RelationLine calculation
   const sourceX = sourceTable.position.x + tableWidth
-  const sourceY = sourceTable.position.y + headerHeight + padding + (columnIndex * columnHeight) + (columnHeight / 2)
+  const sourceY = sourceTable.position.y + headerHeight + padding + 
+    (columnIndex * columnGroupHeight) + labelsRowHeight + (inputsRowHeight / 2) + 10
   
   return `M ${sourceX} ${sourceY} L ${dragPreview.value.x} ${dragPreview.value.y}`
 })

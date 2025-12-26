@@ -8,7 +8,7 @@ const props = defineProps<{
   table: Table
 }>()
 
-const { updateTable, deleteTable, addColumn, updateColumn, deleteColumn, startDrag, endDrag, updateDragPreview, isDragging: isRelationDragging, dragSource, relations } = useSchema()
+const { updateTable, saveTablePosition, deleteTable, addColumn, updateColumn, saveColumnChanges, deleteColumn, startDrag, endDrag, updateDragPreview, isDragging: isRelationDragging, dragSource, hoveredColumn, setHoveredColumn, relations } = useSchema()
 
 // Get zoom and panOffset from parent canvas
 const zoom = inject<Ref<number>>('canvasZoom', ref(1))
@@ -86,6 +86,10 @@ const handleMouseMove = (e: MouseEvent) => {
 }
 
 const handleMouseUp = () => {
+  if (isTableDragging.value) {
+    // Save position to history when drag ends
+    saveTablePosition(props.table.id, props.table.position)
+  }
   isTableDragging.value = false
   document.removeEventListener('mousemove', handleMouseMove)
   document.removeEventListener('mouseup', handleMouseUp)
@@ -106,14 +110,31 @@ const handleUpdateTableName = (e: Event) => {
   updateTable(props.table.id, { name: value })
 }
 
+let columnUpdateTimeout: ReturnType<typeof setTimeout> | null = null
+
 const handleUpdateColumnName = (columnId: string, e: Event) => {
   const value = (e.target as HTMLInputElement).value
   updateColumn(props.table.id, columnId, { name: value })
+  // Debounce history save for text inputs
+  if (columnUpdateTimeout) clearTimeout(columnUpdateTimeout)
+  columnUpdateTimeout = setTimeout(() => {
+    saveColumnChanges()
+  }, 500)
+}
+
+const handleColumnNameBlur = () => {
+  if (columnUpdateTimeout) {
+    clearTimeout(columnUpdateTimeout)
+    columnUpdateTimeout = null
+    saveColumnChanges()
+  }
 }
 
 const handleUpdateColumnType = (columnId: string, e: Event) => {
   const value = (e.target as HTMLSelectElement).value
   updateColumn(props.table.id, columnId, { type: value })
+  // Save immediately for select changes
+  saveColumnChanges()
 }
 
 const handleDeleteColumn = (columnId: string) => {
@@ -155,9 +176,18 @@ const handleColumnDragEnd = () => {
 
 const handleColumnDragOver = (e: DragEvent, columnId: string) => {
   if (!isRelationDragging.value || !dragSource.value) return
+  // Prevent dropping on the same column
   if (dragSource.value.tableId === props.table.id && dragSource.value.columnId === columnId) {
     e.preventDefault()
     e.dataTransfer!.dropEffect = 'none'
+    setHoveredColumn(null, null)
+    return
+  }
+  // Prevent dropping within the same table
+  if (dragSource.value.tableId === props.table.id) {
+    e.preventDefault()
+    e.dataTransfer!.dropEffect = 'none'
+    setHoveredColumn(null, null)
     return
   }
   
@@ -165,13 +195,33 @@ const handleColumnDragOver = (e: DragEvent, columnId: string) => {
   e.stopPropagation()
   e.dataTransfer!.dropEffect = 'link'
   
-  // Update drag preview position - use left edge of target column
-  const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
-  const worldPos = screenToWorld(rect.left, rect.top + rect.height / 2)
-  updateDragPreview(worldPos)
+  // Set hovered column
+  setHoveredColumn(props.table.id, columnId)
+  
+  // Update drag preview position - calculate accurate position matching RelationLine
+  const columnIndex = props.table.columns.findIndex(c => c.id === columnId)
+  const headerHeight = 68
+  const padding = 12
+  const labelsRowHeight = 20
+  const inputsRowHeight = 48
+  const columnGroupHeight = labelsRowHeight + inputsRowHeight
+  
+  // Calculate target column Y position (left edge, center of inputs row)
+  const targetY = props.table.position.y + headerHeight + padding + 
+    (columnIndex * columnGroupHeight) + labelsRowHeight + (inputsRowHeight / 2) + 10
+  const targetX = props.table.position.x // left edge of table
+  
+  updateDragPreview({ x: targetX, y: targetY })
 }
 
-const handleColumnDragLeave = () => {
+const handleColumnDragLeave = (e: DragEvent) => {
+  // Only clear hover if we're actually leaving the column element, not just moving to a child
+  const relatedTarget = e.relatedTarget as HTMLElement
+  const currentTarget = e.currentTarget as HTMLElement
+  if (relatedTarget && currentTarget.contains(relatedTarget)) {
+    return // Still within the column element
+  }
+  setHoveredColumn(null, null)
   updateDragPreview(null)
 }
 
@@ -184,8 +234,16 @@ const handleColumnDrop = (e: DragEvent, columnId: string) => {
   const source = dragSource.value
   const target = { tableId: props.table.id, columnId }
   
-  // Prevent self-relation
+  // Prevent relations within the same table
+  if (source.tableId === target.tableId) {
+    setHoveredColumn(null, null)
+    endDrag()
+    return
+  }
+  
+  // Prevent self-relation (same column) - redundant but kept for clarity
   if (source.tableId === target.tableId && source.columnId === target.columnId) {
+    setHoveredColumn(null, null)
     endDrag()
     return
   }
@@ -202,12 +260,49 @@ const handleColumnDrop = (e: DragEvent, columnId: string) => {
   })
   e.currentTarget?.dispatchEvent(event)
   
+  setHoveredColumn(null, null)
   endDrag()
 }
 
 const isDragOverColumn = (columnId: string) => {
+  // Only show purple highlight if it's a valid drop target (different table)
   return isRelationDragging.value && dragSource.value !== null &&
-    dragSource.value.tableId !== props.table.id && dragSource.value.columnId !== columnId
+    dragSource.value.tableId !== props.table.id && 
+    dragSource.value.columnId !== columnId
+}
+
+const isHoveredColumn = (columnId: string) => {
+  if (!hoveredColumn.value) return false
+  return hoveredColumn.value.tableId === props.table.id &&
+    hoveredColumn.value.columnId === columnId
+}
+
+const getColumnStyle = (columnId: string) => {
+  if (isHoveredColumn(columnId)) {
+    return {
+      borderColor: '#10b981',
+      backgroundColor: '#f0fdf4',
+      borderWidth: '2px',
+      borderStyle: 'solid'
+    }
+  }
+  if (isDragOverColumn(columnId)) {
+    return {
+      borderColor: '#a855f7',
+      backgroundColor: '#faf5ff',
+      borderWidth: '2px',
+      borderStyle: 'solid'
+    }
+  }
+  if (isColumnConnected(columnId)) {
+    return {
+      borderColor: getColumnRelationColor(columnId) || 'transparent',
+      backgroundColor: 'transparent',
+      borderWidth: '2px',
+      borderStyle: 'solid'
+    }
+  }
+  return {}
 }
 
 const getColumnRelationColor = (columnId: string): string | null => {
@@ -293,12 +388,9 @@ const isColumnConnected = (columnId: string) => {
         <div
           class="grid grid-cols-[32px_1fr_100px_32px] gap-2 items-center py-2 px-1 hover:bg-gray-50 rounded transition-colors column-drop-zone"
           :class="{
-            'bg-blue-50 border-2 border-blue-400': isDragOverColumn(column.id),
-            'border-2': isColumnConnected(column.id) && !isDragOverColumn(column.id)
+            'border-2': isColumnConnected(column.id) || isDragOverColumn(column.id) || isHoveredColumn(column.id)
           }"
-          :style="isColumnConnected(column.id) && !isDragOverColumn(column.id) ? {
-            borderColor: getColumnRelationColor(column.id) || 'transparent'
-          } : {}"
+          :style="getColumnStyle(column.id)"
           :draggable="true"
           @dragstart="(e) => handleColumnDragStart(e, column.id)"
           @dragend="handleColumnDragEnd"
@@ -320,6 +412,7 @@ const isColumnConnected = (columnId: string) => {
             :id="`column-name-${column.id}`"
             v-model="column.name"
             @input="(e) => handleUpdateColumnName(column.id, e)"
+            @blur="handleColumnNameBlur"
             class="w-full px-2 py-1 text-sm text-gray-900 bg-white border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 h-8"
             placeholder="column_name"
           />
