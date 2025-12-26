@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref } from 'vue'
 import type { Relation } from '../types/schema'
 
 const props = defineProps<{

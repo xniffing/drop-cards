@@ -8,7 +8,7 @@ const props = defineProps<{
   position?: { x: number; y: number } | null
 }>()
 
-const { tables, updateRelation, deleteRelation, deselectRelation, validateRelation } = useSchema()
+const { tables, updateRelation, deleteRelation, deselectRelation } = useSchema()
 
 const fromTable = computed(() => tables.value.find(t => t.id === props.relation.fromTableId))
 const toTable = computed(() => tables.value.find(t => t.id === props.relation.toTableId))
@@ -27,10 +27,11 @@ const handleTypeChange = (e: Event) => {
 const handleFromTableChange = (e: Event) => {
   const newTableId = (e.target as HTMLSelectElement).value
   const newTable = tables.value.find(t => t.id === newTableId)
-  if (newTable && newTable.columns.length > 0) {
+  const firstColumn = newTable?.columns[0]
+  if (newTable && firstColumn) {
     updateRelation(props.relation.id, {
       fromTableId: newTableId,
-      fromColumnId: newTable.columns[0].id
+      fromColumnId: firstColumn.id
     })
   }
 }
@@ -43,10 +44,11 @@ const handleFromColumnChange = (e: Event) => {
 const handleToTableChange = (e: Event) => {
   const newTableId = (e.target as HTMLSelectElement).value
   const newTable = tables.value.find(t => t.id === newTableId)
-  if (newTable && newTable.columns.length > 0) {
+  const firstColumn = newTable?.columns[0]
+  if (newTable && firstColumn) {
     updateRelation(props.relation.id, {
       toTableId: newTableId,
-      toColumnId: newTable.columns[0].id
+      toColumnId: firstColumn.id
     })
   }
 }

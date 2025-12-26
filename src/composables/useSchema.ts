@@ -26,8 +26,8 @@ const createPreviewSchema = () => {
   const usersTable: Table = {
     id: 'table-users',
     name: 'users',
-    position: { x: 100, y: 100 },
-    width: 280,
+    position: { x: -105.45376723152509, y: -133.0314541082399 },
+    width: 350,
     columns: [
       { id: 'col-users-id', name: 'id', type: 'integer', nullable: false, primaryKey: true, unique: true, autoIncrement: true },
       { id: 'col-users-email', name: 'email', type: 'varchar', nullable: false, primaryKey: false, unique: true, autoIncrement: false },
@@ -39,8 +39,8 @@ const createPreviewSchema = () => {
   const postsTable: Table = {
     id: 'table-posts',
     name: 'posts',
-    position: { x: 500, y: 100 },
-    width: 280,
+    position: { x: 551.0187207219225, y: 258.57169954111 },
+    width: 350,
     columns: [
       { id: 'col-posts-id', name: 'id', type: 'integer', nullable: false, primaryKey: true, unique: true, autoIncrement: true },
       { id: 'col-posts-user-id', name: 'user_id', type: 'integer', nullable: false, primaryKey: false, unique: false, autoIncrement: false },
@@ -53,8 +53,8 @@ const createPreviewSchema = () => {
   const commentsTable: Table = {
     id: 'table-comments',
     name: 'comments',
-    position: { x: 900, y: 100 },
-    width: 280,
+    position: { x: 1244.721085958935, y: -106.83265157536083 },
+    width: 350,
     columns: [
       { id: 'col-comments-id', name: 'id', type: 'integer', nullable: false, primaryKey: true, unique: true, autoIncrement: true },
       { id: 'col-comments-post-id', name: 'post_id', type: 'integer', nullable: false, primaryKey: false, unique: false, autoIncrement: false },
@@ -188,7 +188,7 @@ export function useSchemaProvider() {
       id: `table-${++tableCounter}`,
       name: `table_${tableCounter}`,
       position: { x: 100 + tableCounter * 50, y: 100 + tableCounter * 50 },
-      width: 280,
+      width: 350,
       columns: [
         {
           id: `col-${++columnCounter}`,

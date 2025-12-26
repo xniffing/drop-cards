@@ -30,7 +30,18 @@ const resizeStartX = ref(0)
 const resizeStartWidth = ref(0)
 
 const handleMouseDown = (e: MouseEvent) => {
-  if ((e.target as HTMLElement).closest('.no-drag')) return
+  // Never let interactive controls start a canvas/table drag-selection.
+  // This is especially important for column inputs inside `.column-drop-zone`.
+  if ((e.target as HTMLElement).closest('input, textarea, select, button, [contenteditable="true"]')) {
+    e.stopPropagation()
+    return
+  }
+
+  // Stop propagation for no-drag elements (inputs, buttons, etc.) to prevent canvas drag selection
+  if ((e.target as HTMLElement).closest('.no-drag')) {
+    e.stopPropagation()
+    return
+  }
   if ((e.target as HTMLElement).closest('.resize-handle')) return
   if ((e.target as HTMLElement).closest('.column-drop-zone')) return
 
@@ -60,7 +71,7 @@ const handleResizeStart = (e: MouseEvent) => {
   e.stopPropagation()
   isResizing.value = true
   resizeStartX.value = e.clientX
-  resizeStartWidth.value = props.table.width || 280
+  resizeStartWidth.value = props.table.width || 350
 
   document.addEventListener('mousemove', handleResizeMove)
   document.addEventListener('mouseup', handleResizeEnd)
@@ -299,15 +310,18 @@ const isHoveredColumn = (columnId: string) => {
 const getColumnStyle = (columnId: string) => {
   const style: Record<string, string> = {}
   
+  // Check if dark mode is active
+  const isDark = typeof document !== 'undefined' && document.documentElement.classList.contains('dark')
+  
   // Handle hover state (highest priority for interaction)
   if (isHoveredColumn(columnId)) {
     style.borderColor = '#10b981'
-    style.backgroundColor = '#f0fdf4'
+    style.backgroundColor = isDark ? '#064e3b' : '#f0fdf4' // dark: green-900, light: green-50
     style.borderWidth = '2px'
     style.borderStyle = 'solid'
   } else if (isDragOverColumn(columnId)) {
     style.borderColor = '#a855f7'
-    style.backgroundColor = '#faf5ff'
+    style.backgroundColor = isDark ? '#581c87' : '#faf5ff' // dark: purple-900, light: purple-50
     style.borderWidth = '2px'
     style.borderStyle = 'solid'
   } else if (isColumnConnected(columnId)) {
@@ -376,6 +390,7 @@ const tableCardRef = ref<HTMLElement | null>(null)
 
 const handleColumnMouseDown = (e: MouseEvent) => {
   // Don't track if clicking on inputs, buttons, or during relation drag
+  if ((e.target as HTMLElement).closest('.drag-handle')) return
   if ((e.target as HTMLElement).closest('input')) return
   if ((e.target as HTMLElement).closest('select')) return
   if ((e.target as HTMLElement).closest('button')) return
@@ -406,6 +421,7 @@ const handleColumnMouseDown = (e: MouseEvent) => {
 
 const handleColumnClick = (e: MouseEvent, column: Column) => {
   // Don't open modal if clicking on inputs, buttons, or if it was a drag
+  if ((e.target as HTMLElement).closest('.drag-handle')) return
   if ((e.target as HTMLElement).closest('input')) return
   if ((e.target as HTMLElement).closest('select')) return
   if ((e.target as HTMLElement).closest('button')) return
@@ -449,7 +465,7 @@ const handleColumnClick = (e: MouseEvent, column: Column) => {
     :style="{
       left: `${table.position.x}px`,
       top: `${table.position.y}px`,
-      width: `${table.width || 280}px`
+      width: `${table.width || 350}px`
     }"
     @mousedown="handleMouseDown"
   >
@@ -461,6 +477,7 @@ const handleColumnClick = (e: MouseEvent, column: Column) => {
           id="table-name"
           v-model="table.name"
           @input="handleUpdateTableName"
+          @mousedown.stop
           class="no-drag bg-transparent border-none outline-none font-semibold text-lg w-full text-white placeholder-blue-200"
           placeholder="table_name"
         />
@@ -484,7 +501,7 @@ const handleColumnClick = (e: MouseEvent, column: Column) => {
         class="no-drag group"
       >
         <!-- Labels row -->
-        <div class="grid grid-cols-[32px_1fr_100px_32px] gap-2 px-1 mb-1">
+        <div class="grid grid-cols-[44px_1fr_100px_32px] gap-2 px-1 mb-1">
           <div></div>
           <label :for="`column-name-${column.id}`" class="text-xs text-gray-500 dark:text-gray-400">Name</label>
           <label :for="`column-type-${column.id}`" class="text-xs text-gray-500 dark:text-gray-400">Type</label>
@@ -493,16 +510,13 @@ const handleColumnClick = (e: MouseEvent, column: Column) => {
         
         <!-- Inputs row -->
         <div
-          class="grid grid-cols-[32px_1fr_100px_32px] gap-2 items-center py-2 px-1 hover:bg-gray-50 dark:hover:bg-gray-700 rounded transition-colors column-drop-zone cursor-pointer"
+          class="grid grid-cols-[44px_1fr_100px_32px] gap-2 items-center py-2 px-1 hover:bg-gray-50 dark:hover:bg-gray-700 rounded transition-colors column-drop-zone cursor-pointer"
           :class="{
             'border-2': isColumnConnected(column.id) || isDragOverColumn(column.id) || isHoveredColumn(column.id) || isSelectedColumn(column.id)
           }"
           :style="getColumnStyle(column.id)"
-          :draggable="true"
           @click="(e) => handleColumnClick(e, column)"
           @mousedown="handleColumnMouseDown"
-          @dragstart="(e) => handleColumnDragStart(e, column.id)"
-          @dragend="handleColumnDragEnd"
           @dragover="(e) => handleColumnDragOver(e, column.id)"
           @dragleave="handleColumnDragLeave"
           @drop="(e) => handleColumnDrop(e, column.id)"
@@ -510,7 +524,28 @@ const handleColumnClick = (e: MouseEvent, column: Column) => {
           :data-column-id="column.id"
         >
           <!-- Icon column -->
-          <div class="flex items-center justify-center">
+          <div class="flex items-center justify-start gap-1 pl-1">
+            <!-- Drag handle (two columns of dots) -->
+            <div
+              class="drag-handle p-1 rounded cursor-grab active:cursor-grabbing hover:bg-gray-100 dark:hover:bg-gray-600"
+              draggable="true"
+              title="Drag to create relation"
+              @mousedown.stop
+              @click.stop
+              @dragstart="(e) => handleColumnDragStart(e, column.id)"
+              @dragend="handleColumnDragEnd"
+            >
+              <div class="grid grid-cols-2 gap-[2px]">
+                <span class="w-1 h-1 rounded-full bg-gray-400 dark:bg-gray-500"></span>
+                <span class="w-1 h-1 rounded-full bg-gray-400 dark:bg-gray-500"></span>
+                <span class="w-1 h-1 rounded-full bg-gray-400 dark:bg-gray-500"></span>
+                <span class="w-1 h-1 rounded-full bg-gray-400 dark:bg-gray-500"></span>
+                <span class="w-1 h-1 rounded-full bg-gray-400 dark:bg-gray-500"></span>
+                <span class="w-1 h-1 rounded-full bg-gray-400 dark:bg-gray-500"></span>
+              </div>
+            </div>
+
+            <!-- Column icon (PK/Unique) -->
             <span v-if="getColumnIcon(column)" class="text-base" :title="column.primaryKey ? 'Primary Key' : column.unique ? 'Unique' : ''">
               {{ getColumnIcon(column) }}
             </span>
@@ -522,6 +557,7 @@ const handleColumnClick = (e: MouseEvent, column: Column) => {
             v-model="column.name"
             @input="(e) => handleUpdateColumnName(column.id, e)"
             @blur="handleColumnNameBlur"
+            @mousedown.stop
             class="w-full px-2 py-1 text-sm text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 h-8"
             placeholder="column_name"
           />
@@ -531,6 +567,7 @@ const handleColumnClick = (e: MouseEvent, column: Column) => {
             :id="`column-type-${column.id}`"
             :value="column.type"
             @change="(e) => handleUpdateColumnType(column.id, e)"
+            @mousedown.stop
             class="w-full px-2 py-1 text-sm text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 h-8"
           >
             <option value="integer">integer</option>

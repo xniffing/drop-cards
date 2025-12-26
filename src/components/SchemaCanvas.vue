@@ -35,8 +35,8 @@ const isSelecting = ref(false)
 const selectionStart = ref<{ x: number; y: number } | null>(null)
 const selectionEnd = ref<{ x: number; y: number } | null>(null)
 const panStart = ref({ x: 0, y: 0 })
-const panOffset = ref({ x: 0, y: 0 })
-const zoom = ref(1)
+const panOffset = ref({ x: 137.6009899999999, y: 150.23888999999997 })
+const zoom = ref(0.7217100000000002)
 const minZoom = 0.25
 const maxZoom = 3
 const isMultiDragging = ref(false)
@@ -64,14 +64,47 @@ const handleMouseDown = (e: MouseEvent) => {
     e.stopPropagation()
     isPanning.value = true
     panStart.value = { x: e.clientX - panOffset.value.x, y: e.clientY - panOffset.value.y }
-    document.addEventListener('mousemove', handleMouseMove)
-    document.addEventListener('mouseup', handleMouseUp)
+    // Use capture so inner components calling stopPropagation don't prevent cleanup.
+    document.addEventListener('mousemove', handleMouseMove, { capture: true })
+    document.addEventListener('mouseup', handleMouseUp, { capture: true })
     return
   }
   
   // Left click - handle selection box and multi-drag
   if (e.button === 0) {
     const target = e.target as HTMLElement
+    
+    // Don't trigger drag selection when interacting with input fields, textareas, selects, or buttons
+    // Check both the target and use closest to handle nested elements
+    const isEditableElement = target.tagName === 'INPUT' || 
+                              target.tagName === 'TEXTAREA' || 
+                              target.tagName === 'SELECT' ||
+                              target.tagName === 'BUTTON' ||
+                              target.closest('input, textarea, select, button, [contenteditable="true"], .no-drag')
+    
+    if (isEditableElement) {
+      return // Let the input handle its own events
+    }
+    
+    // Also check if the click originated from within an editable element using composedPath
+    // This handles cases where events bubble through multiple elements
+    const path = e.composedPath ? e.composedPath() : []
+    const hasEditableInPath = path.some((el: EventTarget) => {
+      if (el instanceof HTMLElement) {
+        return el.tagName === 'INPUT' ||
+               el.tagName === 'TEXTAREA' ||
+               el.tagName === 'SELECT' ||
+               el.tagName === 'BUTTON' ||
+               el.classList.contains('no-drag') ||
+               el.hasAttribute('contenteditable')
+      }
+      return false
+    })
+    
+    if (hasEditableInPath) {
+      return // Don't trigger drag selection
+    }
+    
     // Check if click is on canvas background, empty transformed container, or bubbled from a table
     const isCanvasClick = target === canvasRef.value
     const isTableClick = target.closest('[data-table-id]')
@@ -102,7 +135,7 @@ const handleMouseDown = (e: MouseEvent) => {
     
     // Check if clicking on a table
     const clickedTable = tables.value.find(table => {
-      const tableWidth = table.width || 280
+      const tableWidth = table.width || 350
       return worldX >= table.position.x &&
              worldX <= table.position.x + tableWidth &&
              worldY >= table.position.y &&
@@ -134,8 +167,9 @@ const handleMouseDown = (e: MouseEvent) => {
       selectionEnd.value = { x: worldX, y: worldY }
     }
     
-    document.addEventListener('mousemove', handleMouseMove)
-    document.addEventListener('mouseup', handleMouseUp)
+    // Use capture so inner components calling stopPropagation don't prevent cleanup.
+    document.addEventListener('mousemove', handleMouseMove, { capture: true })
+    document.addEventListener('mouseup', handleMouseUp, { capture: true })
   }
 }
 
@@ -204,7 +238,7 @@ const handleMouseMove = (e: MouseEvent) => {
     
     const selectedIds: string[] = []
     tables.value.forEach(table => {
-      const tableWidth = table.width || 280
+      const tableWidth = table.width || 350
       const tableHeight = 200 // Approximate
       const tableRight = table.position.x + tableWidth
       const tableBottom = table.position.y + tableHeight
@@ -266,8 +300,8 @@ const handleMouseUp = () => {
   // Reset state
   mouseDownPos.value = null
   hasMoved.value = false
-  document.removeEventListener('mousemove', handleMouseMove)
-  document.removeEventListener('mouseup', handleMouseUp)
+  document.removeEventListener('mousemove', handleMouseMove, { capture: true })
+  document.removeEventListener('mouseup', handleMouseUp, { capture: true })
 }
 
 const handleRelationDrop = (e: CustomEvent) => {
@@ -343,7 +377,7 @@ const getRelationPosition = computed(() => {
   
   const fromTablePos = fromTable.position
   const toTablePos = toTable.position
-  const fromTableWidth = fromTable.width || 280
+  const fromTableWidth = fromTable.width || 350
   
   const fromColumnIndex = fromTable.columns.findIndex(c => c.id === relation.fromColumnId)
   const toColumnIndex = toTable.columns.findIndex(c => c.id === relation.toColumnId)
@@ -405,7 +439,7 @@ const getDragPreviewPath = computed(() => {
   const sourceColumn = sourceTable.columns.find(c => c.id === dragSource.value!.columnId)
   if (!sourceColumn) return ''
   
-  const tableWidth = sourceTable.width || 280
+  const tableWidth = sourceTable.width || 350
   // Use the same calculation as RelationLine for accurate alignment
   const headerHeight = 68
   const padding = 12

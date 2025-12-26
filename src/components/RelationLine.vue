@@ -30,8 +30,7 @@ const path = computed(() => {
 
   const fromTablePos = fromTable.value.position
   const toTablePos = toTable.value.position
-  const fromTableWidth = fromTable.value.width || 280
-  const toTableWidth = toTable.value.width || 280
+  const fromTableWidth = fromTable.value.width || 350
 
   // Find column indices (cache if possible, but keep reactive)
   const fromColumnIndex = fromTable.value.columns.findIndex(c => c.id === props.relation.fromColumnId)
