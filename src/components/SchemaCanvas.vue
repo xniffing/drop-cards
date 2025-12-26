@@ -1,10 +1,27 @@
 <script setup lang="ts">
-import { ref, provide } from 'vue'
+import { ref, provide, computed } from 'vue'
 import { useSchema } from '../composables/useSchema'
 import TableCard from './TableCard.vue'
 import RelationLine from './RelationLine.vue'
+import RelationTypeModal from './RelationTypeModal.vue'
+import RelationEditor from './RelationEditor.vue'
+import type { Relation } from '../types/schema'
 
-const { tables, relations } = useSchema()
+const { tables, relations, isDragging, dragSource, dragPreview, addRelation, validateRelation, endDrag, selectedRelationId, deselectRelation, updateDragPreview } = useSchema()
+
+const selectedRelation = computed(() => {
+  if (!selectedRelationId.value) return null
+  return relations.value.find(r => r.id === selectedRelationId.value) || null
+})
+
+const pendingRelation = ref<{
+  fromTableId: string
+  fromColumnId: string
+  toTableId: string
+  toColumnId: string
+} | null>(null)
+
+const showRelationModal = computed(() => pendingRelation.value !== null)
 
 const canvasRef = ref<HTMLElement | null>(null)
 const isPanning = ref(false)
@@ -31,8 +48,9 @@ const handleMouseDown = (e: MouseEvent) => {
     return
   }
   
-  // Left click on canvas background
+  // Left click on canvas background - deselect relation
   if (e.target === canvasRef.value) {
+    deselectRelation()
     isPanning.value = true
     panStart.value = { x: e.clientX - panOffset.value.x, y: e.clientY - panOffset.value.y }
     document.addEventListener('mousemove', handleMouseMove)
@@ -48,6 +66,20 @@ const handleMouseMove = (e: MouseEvent) => {
       y: e.clientY - panStart.value.y
     }
   }
+  
+  // Update drag preview position
+  if (isDragging.value && dragSource.value) {
+    const rect = canvasRef.value?.getBoundingClientRect()
+    if (rect) {
+      const mouseX = e.clientX - rect.left
+      const mouseY = e.clientY - rect.top
+      const worldPos = {
+        x: (mouseX - panOffset.value.x) / zoom.value,
+        y: (mouseY - panOffset.value.y) / zoom.value
+      }
+      updateDragPreview(worldPos)
+    }
+  }
 }
 
 const handleMouseUp = (e?: MouseEvent) => {
@@ -57,6 +89,84 @@ const handleMouseUp = (e?: MouseEvent) => {
     document.removeEventListener('mouseup', handleMouseUp)
   }
 }
+
+const handleRelationDrop = (e: CustomEvent) => {
+  const { fromTableId, fromColumnId, toTableId, toColumnId } = e.detail
+  
+  // Validate relation
+  const validation = validateRelation(fromTableId, fromColumnId, toTableId, toColumnId)
+  if (!validation.valid) {
+    alert(validation.error)
+    return
+  }
+  
+  pendingRelation.value = { fromTableId, fromColumnId, toTableId, toColumnId }
+}
+
+const handleRelationConfirm = (type: Relation['type']) => {
+  if (!pendingRelation.value) return
+  
+  addRelation({
+    ...pendingRelation.value,
+    type
+  })
+  
+  pendingRelation.value = null
+}
+
+const handleRelationCancel = () => {
+  pendingRelation.value = null
+}
+
+const getDragPreviewPath = computed(() => {
+  if (!isDragging.value || !dragSource.value || !dragPreview.value) return ''
+  
+  const sourceTable = tables.value.find(t => t.id === dragSource.value!.tableId)
+  if (!sourceTable) return ''
+  
+  const sourceColumn = sourceTable.columns.find(c => c.id === dragSource.value!.columnId)
+  if (!sourceColumn) return ''
+  
+  const tableWidth = sourceTable.width || 280
+  const headerHeight = 60
+  const columnHeight = 50
+  const padding = 12
+  const columnIndex = sourceTable.columns.findIndex(c => c.id === dragSource.value!.columnId)
+  
+  // Calculate source column position (right edge of table)
+  const sourceX = sourceTable.position.x + tableWidth
+  const sourceY = sourceTable.position.y + headerHeight + padding + (columnIndex * columnHeight) + (columnHeight / 2)
+  
+  return `M ${sourceX} ${sourceY} L ${dragPreview.value.x} ${dragPreview.value.y}`
+})
+
+const getFromTableName = computed(() => {
+  if (!pendingRelation.value) return ''
+  const table = tables.value.find(t => t.id === pendingRelation.value!.fromTableId)
+  return table?.name || ''
+})
+
+const getFromColumnName = computed(() => {
+  if (!pendingRelation.value) return ''
+  const table = tables.value.find(t => t.id === pendingRelation.value!.fromTableId)
+  if (!table) return ''
+  const column = table.columns.find(c => c.id === pendingRelation.value!.fromColumnId)
+  return column?.name || ''
+})
+
+const getToTableName = computed(() => {
+  if (!pendingRelation.value) return ''
+  const table = tables.value.find(t => t.id === pendingRelation.value!.toTableId)
+  return table?.name || ''
+})
+
+const getToColumnName = computed(() => {
+  if (!pendingRelation.value) return ''
+  const table = tables.value.find(t => t.id === pendingRelation.value!.toTableId)
+  if (!table) return ''
+  const column = table.columns.find(c => c.id === pendingRelation.value!.toColumnId)
+  return column?.name || ''
+})
 
 const handleWheel = (e: WheelEvent) => {
   e.preventDefault()
@@ -98,6 +208,7 @@ const handleWheel = (e: WheelEvent) => {
     @mouseleave="handleMouseUp"
     @wheel.prevent="handleWheel"
     @contextmenu.prevent
+    @relation-drop="handleRelationDrop"
   >
     <!-- Grid pattern -->
     <svg class="absolute inset-0 w-full h-full pointer-events-none">
@@ -117,7 +228,18 @@ const handleWheel = (e: WheelEvent) => {
       }"
     >
       <!-- Relations (drawn behind tables) -->
-      <svg class="absolute inset-0 w-full h-full pointer-events-none overflow-visible">
+      <svg class="absolute inset-0 w-full h-full pointer-events-none overflow-visible" style="will-change: contents;">
+        <!-- Drag preview line -->
+        <path
+          v-if="getDragPreviewPath"
+          :d="getDragPreviewPath"
+          stroke="#9ca3af"
+          stroke-width="2"
+          stroke-dasharray="5,5"
+          fill="none"
+          class="pointer-events-none"
+        />
+        
         <RelationLine
           v-for="relation in relations"
           :key="relation.id"
@@ -147,5 +269,22 @@ const handleWheel = (e: WheelEvent) => {
         <p class="text-gray-500">Click "Add Table" to get started</p>
       </div>
     </div>
+
+    <!-- Relation Type Modal -->
+    <RelationTypeModal
+      v-if="showRelationModal"
+      :from-table-name="getFromTableName"
+      :from-column-name="getFromColumnName"
+      :to-table-name="getToTableName"
+      :to-column-name="getToColumnName"
+      @confirm="handleRelationConfirm"
+      @cancel="handleRelationCancel"
+    />
+
+    <!-- Relation Editor -->
+    <RelationEditor
+      v-if="selectedRelation"
+      :relation="selectedRelation"
+    />
   </div>
 </template>

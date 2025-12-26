@@ -10,4 +10,6 @@ body {
 #app {
   width: 100vw;
   height: 100vh;
+  color: #111827;
+  background-color: #f9fafb;
 }

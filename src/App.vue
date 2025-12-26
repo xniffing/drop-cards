@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import SchemaCanvas from './components/SchemaCanvas.vue'
 import Toolbar from './components/Toolbar.vue'
+import DebugPanel from './components/DebugPanel.vue'
 import { useSchemaProvider } from './composables/useSchema'
 
 // Initialize schema provider
@@ -24,5 +25,8 @@ useSchemaProvider()
     <main class="flex-1 overflow-hidden">
       <SchemaCanvas />
     </main>
+
+    <!-- Debug Panel -->
+    <DebugPanel />
   </div>
 </template>

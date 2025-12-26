@@ -8,7 +8,7 @@ const props = defineProps<{
   table: Table
 }>()
 
-const { updateTable, deleteTable, addColumn, updateColumn, deleteColumn } = useSchema()
+const { updateTable, deleteTable, addColumn, updateColumn, deleteColumn, startDrag, endDrag, updateDragPreview, isDragging: isRelationDragging, dragSource, relations } = useSchema()
 
 // Get zoom and panOffset from parent canvas
 const zoom = inject<Ref<number>>('canvasZoom', ref(1))
@@ -22,7 +22,7 @@ const screenToWorld = (screenX: number, screenY: number) => {
   }
 }
 
-const isDragging = ref(false)
+const isTableDragging = ref(false)
 const dragOffset = ref({ x: 0, y: 0 })
 const isResizing = ref(false)
 const resizeStartX = ref(0)
@@ -31,8 +31,9 @@ const resizeStartWidth = ref(0)
 const handleMouseDown = (e: MouseEvent) => {
   if ((e.target as HTMLElement).closest('.no-drag')) return
   if ((e.target as HTMLElement).closest('.resize-handle')) return
+  if ((e.target as HTMLElement).closest('.column-drop-zone')) return
 
-  isDragging.value = true
+  isTableDragging.value = true
   
   // Convert screen coordinates to world coordinates
   const worldPos = screenToWorld(e.clientX, e.clientY)
@@ -72,7 +73,7 @@ const handleResizeEnd = () => {
 }
 
 const handleMouseMove = (e: MouseEvent) => {
-  if (isDragging.value) {
+  if (isTableDragging.value) {
     // Convert screen coordinates to world coordinates
     const worldPos = screenToWorld(e.clientX, e.clientY)
     updateTable(props.table.id, {
@@ -85,7 +86,7 @@ const handleMouseMove = (e: MouseEvent) => {
 }
 
 const handleMouseUp = () => {
-  isDragging.value = false
+  isTableDragging.value = false
   document.removeEventListener('mousemove', handleMouseMove)
   document.removeEventListener('mouseup', handleMouseUp)
 }
@@ -128,6 +129,115 @@ const getColumnIcon = (column: Column) => {
   if (column.unique) return '⭐'
   return ''
 }
+
+const handleColumnDragStart = (e: DragEvent, columnId: string) => {
+  e.stopPropagation()
+  if (!e.dataTransfer) return
+  
+  startDrag(props.table.id, columnId)
+  e.dataTransfer.effectAllowed = 'link'
+  e.dataTransfer.setData('text/plain', `${props.table.id}:${columnId}`)
+  
+  // Set a custom drag image (optional, can be improved)
+  const dragImage = document.createElement('div')
+  dragImage.style.position = 'absolute'
+  dragImage.style.top = '-1000px'
+  dragImage.textContent = 'Creating relation...'
+  document.body.appendChild(dragImage)
+  e.dataTransfer.setDragImage(dragImage, 0, 0)
+  setTimeout(() => document.body.removeChild(dragImage), 0)
+}
+
+const handleColumnDragEnd = () => {
+  endDrag()
+  updateDragPreview(null)
+}
+
+const handleColumnDragOver = (e: DragEvent, columnId: string) => {
+  if (!isRelationDragging.value || !dragSource.value) return
+  if (dragSource.value.tableId === props.table.id && dragSource.value.columnId === columnId) {
+    e.preventDefault()
+    e.dataTransfer!.dropEffect = 'none'
+    return
+  }
+  
+  e.preventDefault()
+  e.stopPropagation()
+  e.dataTransfer!.dropEffect = 'link'
+  
+  // Update drag preview position - use left edge of target column
+  const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+  const worldPos = screenToWorld(rect.left, rect.top + rect.height / 2)
+  updateDragPreview(worldPos)
+}
+
+const handleColumnDragLeave = () => {
+  updateDragPreview(null)
+}
+
+const handleColumnDrop = (e: DragEvent, columnId: string) => {
+  e.preventDefault()
+  e.stopPropagation()
+  
+  if (!isRelationDragging.value || !dragSource.value) return
+  
+  const source = dragSource.value
+  const target = { tableId: props.table.id, columnId }
+  
+  // Prevent self-relation
+  if (source.tableId === target.tableId && source.columnId === target.columnId) {
+    endDrag()
+    return
+  }
+  
+  // Emit event to parent to show relation type modal
+  const event = new CustomEvent('relation-drop', {
+    detail: {
+      fromTableId: source.tableId,
+      fromColumnId: source.columnId,
+      toTableId: target.tableId,
+      toColumnId: target.columnId
+    },
+    bubbles: true
+  })
+  e.currentTarget?.dispatchEvent(event)
+  
+  endDrag()
+}
+
+const isDragOverColumn = (columnId: string) => {
+  return isRelationDragging.value && dragSource.value !== null &&
+    dragSource.value.tableId !== props.table.id && dragSource.value.columnId !== columnId
+}
+
+const getColumnRelationColor = (columnId: string): string | null => {
+  // Find relations connected to this column
+  const relation = relations.value.find(
+    r => (r.fromTableId === props.table.id && r.fromColumnId === columnId) ||
+         (r.toTableId === props.table.id && r.toColumnId === columnId)
+  )
+  
+  if (!relation) return null
+  
+  // Return color based on relation type
+  switch (relation.type) {
+    case 'one-to-one':
+      return '#3b82f6' // blue
+    case 'one-to-many':
+      return '#10b981' // green
+    case 'many-to-many':
+      return '#f59e0b' // amber
+    default:
+      return '#6b7280' // gray
+  }
+}
+
+const isColumnConnected = (columnId: string) => {
+  return relations.value.some(
+    r => (r.fromTableId === props.table.id && r.fromColumnId === columnId) ||
+         (r.toTableId === props.table.id && r.toColumnId === columnId)
+  )
+}
 </script>
 
 <template>
@@ -138,7 +248,7 @@ const getColumnIcon = (column: Column) => {
       top: `${table.position.y}px`,
       width: `${table.width || 280}px`
     }"
-    :class="{ 'opacity-80': isDragging || isResizing }"
+    :class="{ 'opacity-80': isTableDragging || isResizing }"
     @mousedown="handleMouseDown"
   >
     <!-- Table header -->
@@ -180,7 +290,24 @@ const getColumnIcon = (column: Column) => {
         </div>
         
         <!-- Inputs row -->
-        <div class="grid grid-cols-[32px_1fr_100px_32px] gap-2 items-center py-2 px-1 hover:bg-gray-50 rounded transition-colors">
+        <div
+          class="grid grid-cols-[32px_1fr_100px_32px] gap-2 items-center py-2 px-1 hover:bg-gray-50 rounded transition-colors column-drop-zone"
+          :class="{
+            'bg-blue-50 border-2 border-blue-400': isDragOverColumn(column.id),
+            'border-2': isColumnConnected(column.id) && !isDragOverColumn(column.id)
+          }"
+          :style="isColumnConnected(column.id) && !isDragOverColumn(column.id) ? {
+            borderColor: getColumnRelationColor(column.id) || 'transparent'
+          } : {}"
+          :draggable="true"
+          @dragstart="(e) => handleColumnDragStart(e, column.id)"
+          @dragend="handleColumnDragEnd"
+          @dragover="(e) => handleColumnDragOver(e, column.id)"
+          @dragleave="handleColumnDragLeave"
+          @drop="(e) => handleColumnDrop(e, column.id)"
+          :data-table-id="table.id"
+          :data-column-id="column.id"
+        >
           <!-- Icon column -->
           <div class="flex items-center justify-center">
             <span v-if="getColumnIcon(column)" class="text-base" :title="column.primaryKey ? 'Primary Key' : column.unique ? 'Unique' : ''">
