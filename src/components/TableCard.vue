@@ -472,12 +472,12 @@ const handleColumnClick = (e: MouseEvent, column: Column) => {
     <!-- Table header -->
     <div class="bg-blue-600 text-white px-4 py-3 rounded-t-lg flex items-center justify-between gap-2 min-w-0">
       <div class="flex-1 min-w-0">
-        <label for="table-name" class="block text-xs text-blue-200 mb-1">Table Name</label>
         <input
           id="table-name"
           v-model="table.name"
           @input="handleUpdateTableName"
           @mousedown.stop
+          aria-label="Table name"
           class="no-drag bg-transparent border-none outline-none font-semibold text-lg w-full text-white placeholder-blue-200"
           placeholder="table_name"
         />
