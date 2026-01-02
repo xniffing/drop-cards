@@ -14,7 +14,7 @@ type ChatItem = {
   createdAt: number
 }
 
-const { importFromDrizzle, exportToDrizzle, tables } = useSchema()
+const { importFromDrizzle, exportToDrizzle, tables, autoArrange } = useSchema()
 
 const apiKey = computed(() => import.meta.env.VITE_OPENROUTER_API_KEY || '')
 const model = 'google/gemma-3-27b-it:free'
@@ -132,6 +132,11 @@ const send = async () => {
       const result = importFromDrizzle(code)
       if (!result.success) {
         error.value = `Generated schema could not be imported: ${result.error || 'Unknown error'}`
+      } else {
+        const arranged = await autoArrange()
+        if (!arranged.success) {
+          error.value = `Auto-arrange failed: ${arranged.error || 'Unknown error'}`
+        }
       }
     }
   } catch (e) {

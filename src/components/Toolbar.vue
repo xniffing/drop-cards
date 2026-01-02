@@ -15,7 +15,7 @@ const emit = defineEmits<{
 }>()
 
 const addTable = inject<() => void>('addTable')
-const { undo, redo, canUndo, canRedo, exportToDrizzle, importFromDrizzle, databases, currentDatabaseName, newEmptySchema, saveDatabase, loadDatabase, deleteDatabaseById, renameDatabase } = useSchema()
+const { undo, redo, canUndo, canRedo, autoArrange, isAutoArranging, exportToDrizzle, importFromDrizzle, databases, currentDatabaseName, newEmptySchema, saveDatabase, loadDatabase, deleteDatabaseById, renameDatabase } = useSchema()
 const { themeMode, setThemeMode } = useTheme()
 
 const showThemeMenu = ref(false)
@@ -53,6 +53,13 @@ const handleUndo = () => {
 
 const handleRedo = () => {
   redo()
+}
+
+const handleAutoArrange = async () => {
+  const res = await autoArrange()
+  if (!res.success) {
+    alert(`Auto-arrange failed: ${res.error || 'Unknown error'}`)
+  }
 }
 
 const handleExport = () => {
@@ -150,7 +157,7 @@ const handleDatabaseNewEmpty = () => {
 }
 
 // Keyboard shortcuts
-const handleKeyDown = (e: KeyboardEvent) => {
+const handleKeyDown = async (e: KeyboardEvent) => {
   // Don't trigger shortcuts when user is typing in input fields
   const target = e.target as HTMLElement
   const isEditable = target.tagName === 'INPUT' || 
@@ -160,6 +167,12 @@ const handleKeyDown = (e: KeyboardEvent) => {
   
   if (isEditable) {
     return
+  }
+
+  // Ctrl+L or Cmd+L for auto-arrange
+  if ((e.ctrlKey || e.metaKey) && (e.key === 'l' || e.key === 'L')) {
+    e.preventDefault()
+    await handleAutoArrange()
   }
 
   // Ctrl+Z or Cmd+Z for undo
@@ -243,6 +256,19 @@ onUnmounted(() => {
           <path stroke-linecap="round" stroke-linejoin="round" d="M15 15l6-6m0 0l-6-6m6 6H9a6 6 0 000 12h3" />
         </svg>
         <span>Redo</span>
+      </button>
+
+      <button
+        @click="handleAutoArrange"
+        :disabled="isAutoArranging"
+        :class="btnNeutral"
+        type="button"
+        title="Auto Arrange (Ctrl/Cmd+L)"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h8M4 18h16M4 12h16M14 6l2-2m-2 2l2 2" />
+        </svg>
+        <span>{{ isAutoArranging ? 'Arranging…' : 'Auto Arrange' }}</span>
       </button>
 
       <div :class="dividerClass"></div>

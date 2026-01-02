@@ -1,5 +1,6 @@
 import { ref, provide, inject, watch } from 'vue'
 import type { Table, Column, Relation, Schema } from '../types/schema'
+import { computeElkLayout } from '../services/autoLayout'
 
 const SCHEMA_KEY = Symbol('schema')
 
@@ -216,6 +217,7 @@ export function useSchemaProvider() {
   const relations = ref<Relation[]>(previewData.relations)
   const selectedRelationId = ref<string | null>(null)
   const selectedTableIds = ref<Set<string>>(new Set())
+  const isAutoArranging = ref(false)
 
   // Saved databases list (named snapshots)
   const databases = ref<StoredDatabase[]>(
@@ -420,6 +422,38 @@ export function useSchemaProvider() {
     const snapshot = history.value[historyIndex.value]
     if (snapshot) {
       restoreFromSnapshot(snapshot)
+    }
+  }
+
+  const autoArrange = async (): Promise<{ success: boolean; error?: string }> => {
+    if (isAutoArranging.value) return { success: false, error: 'Auto-arrange is already running' }
+    if (!Array.isArray(tables.value) || tables.value.length === 0) return { success: false, error: 'No tables to arrange' }
+
+    isAutoArranging.value = true
+    try {
+      // Compute first so we don't add a history entry if layout fails.
+      const positions = await computeElkLayout(tables.value, relations.value, {
+        direction: 'RIGHT',
+        // For RIGHT layouts, this mostly controls vertical spacing ("row gaps") within each column/layer.
+        nodeSpacing: 120,
+        // Horizontal spacing between layers/columns.
+        layerSpacing: 160
+      })
+
+      // One undo step for the entire layout operation.
+      saveToHistory()
+
+      for (const t of tables.value) {
+        const pos = positions[t.id]
+        if (!pos) continue
+        updateTable(t.id, { position: { x: pos.x, y: pos.y } })
+      }
+
+      return { success: true }
+    } catch (e) {
+      return { success: false, error: e instanceof Error ? e.message : 'Failed to auto-arrange' }
+    } finally {
+      isAutoArranging.value = false
     }
   }
 
@@ -1217,6 +1251,7 @@ export function useSchemaProvider() {
     selectedRelationId,
     selectedTableIds,
     isDragging,
+    isAutoArranging,
     dragSource,
     dragPreview,
     hoveredColumn,
@@ -1248,6 +1283,7 @@ export function useSchemaProvider() {
     validateRelation,
     undo,
     redo,
+    autoArrange,
     exportToDrizzle,
     importFromDrizzle,
     newEmptySchema,
