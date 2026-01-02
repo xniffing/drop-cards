@@ -5,6 +5,7 @@ import { useTheme, type ThemeMode } from '../composables/useTheme'
 import ImportModal from './ImportModal.vue'
 import DatabaseModal from './DatabaseModal.vue'
 import HelpModal from './HelpModal.vue'
+import { openSwaggerUiInNewTab } from '../services/openapiDocs'
 
 defineProps<{
   chatOpen: boolean
@@ -15,7 +16,7 @@ const emit = defineEmits<{
 }>()
 
 const addTable = inject<() => void>('addTable')
-const { undo, redo, canUndo, canRedo, autoArrange, isAutoArranging, exportToDrizzle, importFromDrizzle, databases, currentDatabaseName, newEmptySchema, saveDatabase, loadDatabase, deleteDatabaseById, renameDatabase } = useSchema()
+const { undo, redo, canUndo, canRedo, autoArrange, isAutoArranging, exportToDrizzle, exportToOpenApiJson, importFromDrizzle, databases, currentDatabaseName, newEmptySchema, saveDatabase, loadDatabase, deleteDatabaseById, renameDatabase } = useSchema()
 const { themeMode, setThemeMode } = useTheme()
 
 const showThemeMenu = ref(false)
@@ -78,6 +79,39 @@ const handleExport = () => {
     document.body.removeChild(textarea)
     alert('Drizzle schema code copied to clipboard!')
   })
+}
+
+const handleExportOpenApi = async () => {
+  const json = exportToOpenApiJson()
+  const filename = 'openapi.json'
+
+  // Download as file
+  const blob = new Blob([json], { type: 'application/json' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+
+  // Optional: copy to clipboard (best-effort)
+  try {
+    await navigator.clipboard.writeText(json)
+  } catch {
+    // ignore
+  }
+
+  alert('OpenAPI exported as openapi.json!')
+}
+
+const handleOpenApiDocs = () => {
+  const json = exportToOpenApiJson()
+  const res = openSwaggerUiInNewTab(json, { title: 'Generated API Docs' })
+  if (!res.success) {
+    alert(`Failed to open docs: ${res.error}`)
+  }
 }
 
 const handleImport = () => {
@@ -307,6 +341,30 @@ onUnmounted(() => {
           <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
         </svg>
         <span>Export</span>
+      </button>
+
+      <button
+        @click="handleExportOpenApi"
+        :class="btnNeutral"
+        type="button"
+        title="Export OpenAPI (openapi.json)"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6M7 20h10a2 2 0 002-2V8l-6-6H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+        </svg>
+        <span>OpenAPI</span>
+      </button>
+
+      <button
+        @click="handleOpenApiDocs"
+        :class="btnNeutral"
+        type="button"
+        title="View API docs (Swagger UI)"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 6h.01M12 10h.01M12 14h.01M10 18h4M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+        </svg>
+        <span>Docs</span>
       </button>
 
       <div :class="dividerClass"></div>

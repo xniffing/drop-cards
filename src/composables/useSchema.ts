@@ -1,6 +1,7 @@
 import { ref, provide, inject, watch } from 'vue'
 import type { Table, Column, Relation, Schema } from '../types/schema'
 import { computeElkLayout } from '../services/autoLayout'
+import { generateOpenApiJson } from '../services/openapi'
 
 const SCHEMA_KEY = Symbol('schema')
 
@@ -799,6 +800,14 @@ export function useSchemaProvider() {
     return code
   }
 
+  const exportToOpenApiJson = (): string => {
+    const schema: Schema = {
+      tables: tables.value,
+      relations: relations.value
+    }
+    return generateOpenApiJson(schema)
+  }
+
   // Map Drizzle types back to internal types
   const mapDrizzleTypeToInternal = (drizzleType: string): string => {
     const typeMap: Record<string, string> = {
@@ -1285,6 +1294,7 @@ export function useSchemaProvider() {
     redo,
     autoArrange,
     exportToDrizzle,
+    exportToOpenApiJson,
     importFromDrizzle,
     newEmptySchema,
     saveDatabase,
