@@ -1,7 +1,9 @@
 <script setup lang="ts">
+import { ref } from 'vue'
 import SchemaCanvas from './components/SchemaCanvas.vue'
 import Toolbar from './components/Toolbar.vue'
 import DebugPanel from './components/DebugPanel.vue'
+import ChatAside from './components/ChatAside.vue'
 import { useSchemaProvider } from './composables/useSchema'
 import { useTheme } from './composables/useTheme'
 
@@ -10,6 +12,8 @@ useSchemaProvider()
 
 // Initialize theme
 useTheme()
+
+const showChat = ref(false)
 </script>
 
 <template>
@@ -23,11 +27,14 @@ useTheme()
     </header>
 
     <!-- Toolbar -->
-    <Toolbar />
+    <Toolbar :chat-open="showChat" @toggle-chat="showChat = !showChat" />
 
     <!-- Canvas -->
-    <main class="flex-1 overflow-hidden">
-      <SchemaCanvas />
+    <main class="flex-1 overflow-hidden flex">
+      <div class="flex-1 overflow-hidden">
+        <SchemaCanvas />
+      </div>
+      <ChatAside v-if="showChat" @close="showChat = false" />
     </main>
 
     <!-- Debug Panel -->

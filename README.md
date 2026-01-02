@@ -32,6 +32,14 @@ npm run dev
 
 The app will be available at `http://localhost:5173/`
 
+### AI Chat (OpenRouter)
+
+To enable the AI chat panel, create a `.env` file (see `env.example`) and set:
+
+```bash
+VITE_OPENROUTER_API_KEY=your_openrouter_key
+```
+
 ### Build
 
 ```bash
