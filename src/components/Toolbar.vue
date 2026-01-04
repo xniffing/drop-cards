@@ -326,7 +326,7 @@ onUnmounted(() => {
         title="Import from Drizzle Schema"
       >
         <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v-2.25A2.25 2.25 0 015.25 12h13.5A2.25 2.25 0 0121 14.25v2.25M3 16.5l3-3m-3 3l3 3M21 16.5l-3-3m3 3l-3 3M16.5 12V9.75m0 0l-3 3m3-3l3 3" />
+          <path stroke-linecap="round" stroke-linejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
         </svg>
       </button>
 
@@ -410,7 +410,7 @@ onUnmounted(() => {
         title="Saved databases (localStorage)"
       >
         <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M4 7a4 4 0 018 0v10a4 4 0 01-8 0V7zm8 0a4 4 0 018 0v10a4 4 0 01-8 0V7z" />
+          <path stroke-linecap="round" stroke-linejoin="round" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" />
         </svg>
       </button>
     </div>
