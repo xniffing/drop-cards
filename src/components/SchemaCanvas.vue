@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, provide, computed } from 'vue'
+import { ref, provide, computed, watch } from 'vue'
 import { useSchema } from '../composables/useSchema'
 import TableCard from './TableCard.vue'
 import RelationLine from './RelationLine.vue'
@@ -49,6 +49,15 @@ const hasMoved = ref(false)
 // Provide zoom and panOffset for child components
 provide('canvasZoom', zoom)
 provide('canvasPanOffset', panOffset)
+
+// Emit zoom changes for parent components (like Toolbar)
+const emit = defineEmits<{
+  'zoom-change': [zoom: number]
+}>()
+
+watch(zoom, (newZoom) => {
+  emit('zoom-change', newZoom)
+}, { immediate: true })
 
 // Provide selected column info for highlighting
 const selectedColumnInfo = computed(() => {

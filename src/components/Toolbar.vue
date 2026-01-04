@@ -5,10 +5,12 @@ import { useTheme, type ThemeMode } from '../composables/useTheme'
 import ImportModal from './ImportModal.vue'
 import DatabaseModal from './DatabaseModal.vue'
 import HelpModal from './HelpModal.vue'
+import SqlModal from './SqlModal.vue'
 import { openSwaggerUiInNewTab } from '../services/openapiDocs'
 
 defineProps<{
   chatOpen: boolean
+  zoom: number
 }>()
 
 const emit = defineEmits<{
@@ -16,16 +18,18 @@ const emit = defineEmits<{
 }>()
 
 const addTable = inject<() => void>('addTable')
-const { undo, redo, canUndo, canRedo, autoArrange, isAutoArranging, exportToDrizzle, exportToOpenApiJson, importFromDrizzle, databases, currentDatabaseName, newEmptySchema, saveDatabase, loadDatabase, deleteDatabaseById, renameDatabase } = useSchema()
+const { undo, redo, canUndo, canRedo, autoArrange, isAutoArranging, exportToDrizzle, exportToOpenApiJson, exportToSql, importFromDrizzle, databases, currentDatabaseName, newEmptySchema, saveDatabase, loadDatabase, deleteDatabaseById, renameDatabase } = useSchema()
 const { themeMode, setThemeMode } = useTheme()
 
 const showThemeMenu = ref(false)
 const showImportModal = ref(false)
 const showDatabaseModal = ref(false)
 const showHelpModal = ref(false)
+const showSqlModal = ref(false)
+const showExportMenu = ref(false)
 
 const btnBase =
-  'px-2.5 py-1.5 rounded-lg transition-colors flex items-center justify-center gap-1.5 text-sm font-medium shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed'
+  'p-2 rounded-lg transition-colors flex items-center justify-center text-sm font-medium shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed relative'
 const btnNeutral =
   `${btnBase} bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 active:bg-gray-300 dark:active:bg-gray-500`
 const btnPrimaryBlue =
@@ -183,6 +187,14 @@ const handleHelpCancel = () => {
   showHelpModal.value = false
 }
 
+const handleSqlMigration = () => {
+  showSqlModal.value = true
+}
+
+const handleSqlCancel = () => {
+  showSqlModal.value = false
+}
+
 const handleDatabaseNewEmpty = () => {
   const ok = confirm('Create a new empty schema? This will replace the current canvas.')
   if (!ok) return
@@ -236,6 +248,9 @@ const handleClickOutside = (e: MouseEvent) => {
   if (!target.closest('.theme-menu-container')) {
     showThemeMenu.value = false
   }
+  if (!target.closest('.export-menu-container')) {
+    showExportMenu.value = false
+  }
 }
 
 onMounted(() => {
@@ -250,18 +265,18 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-2 flex items-center gap-3">
+  <div class="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-3 py-1.5 flex items-center gap-1.5">
     <!-- Left: primary actions -->
-    <div class="flex flex-wrap items-center gap-2 min-w-0">
+    <div class="flex items-center gap-1 min-w-0">
       <button
         @click="handleAddTable"
         :class="btnPrimaryBlue"
         type="button"
+        title="Add Table"
       >
-        <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
           <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
         </svg>
-        <span>Add Table</span>
       </button>
 
       <div :class="dividerClass"></div>
@@ -273,10 +288,9 @@ onUnmounted(() => {
         type="button"
         title="Undo (Ctrl+Z)"
       >
-        <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
           <path stroke-linecap="round" stroke-linejoin="round" d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3" />
         </svg>
-        <span>Undo</span>
       </button>
 
       <button
@@ -286,10 +300,9 @@ onUnmounted(() => {
         type="button"
         title="Redo (Ctrl+Shift+Z or Ctrl+Y)"
       >
-        <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
           <path stroke-linecap="round" stroke-linejoin="round" d="M15 15l6-6m0 0l-6-6m6 6H9a6 6 0 000 12h3" />
         </svg>
-        <span>Redo</span>
       </button>
 
       <button
@@ -299,10 +312,9 @@ onUnmounted(() => {
         type="button"
         title="Auto Arrange (Ctrl/Cmd+L)"
       >
-        <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
           <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h8M4 18h16M4 12h16M14 6l2-2m-2 2l2 2" />
         </svg>
-        <span>{{ isAutoArranging ? 'Arranging…' : 'Auto Arrange' }}</span>
       </button>
 
       <div :class="dividerClass"></div>
@@ -313,10 +325,9 @@ onUnmounted(() => {
         type="button"
         title="Import from Drizzle Schema"
       >
-        <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
           <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v-2.25A2.25 2.25 0 015.25 12h13.5A2.25 2.25 0 0121 14.25v2.25M3 16.5l3-3m-3 3l3 3M21 16.5l-3-3m3 3l-3 3M16.5 12V9.75m0 0l-3 3m3-3l3 3" />
         </svg>
-        <span>Import</span>
       </button>
 
       <button
@@ -325,47 +336,70 @@ onUnmounted(() => {
         type="button"
         title="AI Chat (generate Drizzle schema)"
       >
-        <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
           <path stroke-linecap="round" stroke-linejoin="round" d="M7.5 8.25h9m-9 3h6m-8.25 9l3.086-3.086A2.25 2.25 0 0012 16.5h7.5A2.25 2.25 0 0021.75 14.25v-7.5A2.25 2.25 0 0019.5 4.5h-15A2.25 2.25 0 002.25 6.75v8.25A2.25 2.25 0 004.5 17.25h.879a2.25 2.25 0 011.59.659L10.5 21.44" />
         </svg>
-        <span>AI Chat</span>
       </button>
 
-      <button
-        @click="handleExport"
-        :class="btnPrimaryGreen"
-        type="button"
-        title="Export to Drizzle Schema"
-      >
-        <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
-        </svg>
-        <span>Export</span>
-      </button>
+      <!-- Export Menu -->
+      <div class="export-menu-container relative">
+        <button
+          @click.stop="showExportMenu = !showExportMenu"
+          :class="btnPrimaryGreen"
+          type="button"
+          title="Export"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+          </svg>
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3 ml-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
 
-      <button
-        @click="handleExportOpenApi"
-        :class="btnNeutral"
-        type="button"
-        title="Export OpenAPI (openapi.json)"
-      >
-        <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6M7 20h10a2 2 0 002-2V8l-6-6H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-        </svg>
-        <span>OpenAPI</span>
-      </button>
-
-      <button
-        @click="handleOpenApiDocs"
-        :class="btnNeutral"
-        type="button"
-        title="View API docs (Swagger UI)"
-      >
-        <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M12 6h.01M12 10h.01M12 14h.01M10 18h4M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-        </svg>
-        <span>Docs</span>
-      </button>
+        <!-- Export Menu Dropdown -->
+        <div
+          v-if="showExportMenu"
+          class="absolute left-0 mt-1 w-48 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg py-1 z-50"
+        >
+          <button
+            @click="handleExport(); showExportMenu = false"
+            class="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+            </svg>
+            <span>Drizzle Schema</span>
+          </button>
+          <button
+            @click="handleSqlMigration(); showExportMenu = false"
+            class="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" />
+            </svg>
+            <span>SQL Migration</span>
+          </button>
+          <button
+            @click="handleExportOpenApi(); showExportMenu = false"
+            class="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6M7 20h10a2 2 0 002-2V8l-6-6H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+            </svg>
+            <span>OpenAPI JSON</span>
+          </button>
+          <button
+            @click="handleOpenApiDocs(); showExportMenu = false"
+            class="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 6h.01M12 10h.01M12 14h.01M10 18h4M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+            <span>API Docs</span>
+          </button>
+        </div>
+      </div>
 
       <div :class="dividerClass"></div>
 
@@ -375,18 +409,24 @@ onUnmounted(() => {
         type="button"
         title="Saved databases (localStorage)"
       >
-        <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
           <path stroke-linecap="round" stroke-linejoin="round" d="M4 7a4 4 0 018 0v10a4 4 0 01-8 0V7zm8 0a4 4 0 018 0v10a4 4 0 01-8 0V7z" />
         </svg>
-        <span>Databases</span>
       </button>
     </div>
 
     <!-- Right: status & utilities -->
-    <div class="ml-auto flex items-center gap-2 shrink-0">
-      <div class="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-sm">
+    <div class="ml-auto flex items-center gap-1.5 shrink-0">
+      <div class="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-xs">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 text-gray-500 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607zM10.5 7.5v6m3-3h-6" />
+        </svg>
+        <span class="text-gray-600 dark:text-gray-300 font-medium">{{ Math.round(zoom * 100) }}%</span>
+      </div>
+      
+      <div class="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-xs">
         <span class="text-gray-500 dark:text-gray-400">DB</span>
-        <span class="font-medium text-gray-800 dark:text-gray-200 max-w-[240px] truncate">{{ currentDatabaseName }}</span>
+        <span class="font-medium text-gray-800 dark:text-gray-200 max-w-[200px] truncate">{{ currentDatabaseName }}</span>
       </div>
 
       <button
@@ -497,6 +537,13 @@ onUnmounted(() => {
     <HelpModal
       :open="showHelpModal"
       @cancel="handleHelpCancel"
+    />
+
+    <!-- SQL Modal -->
+    <SqlModal
+      :open="showSqlModal"
+      :sql="exportToSql()"
+      @cancel="handleSqlCancel"
     />
   </div>
 </template>

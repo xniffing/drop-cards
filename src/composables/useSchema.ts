@@ -831,6 +831,71 @@ export function useSchemaProvider() {
     return generateOpenApiJson(schema)
   }
 
+  // Generate SQL migration script for D1 (SQLite)
+  const exportToSql = (): string => {
+    let sql = '-- SQL Migration Script for Cloudflare D1 (SQLite)\n'
+    sql += '-- Generated from Drop Cards schema\n\n'
+    
+    tables.value.forEach(table => {
+      const tableName = table.name
+      sql += `CREATE TABLE IF NOT EXISTS "${tableName}" (\n`
+      
+      const columnDefs: string[] = []
+      
+      table.columns.forEach(column => {
+        let colDef = `  "${column.name}" `
+        
+        // Map column type to SQLite type
+        const drizzleTypeInfo = mapColumnTypeToDrizzle(column.type)
+        if (column.autoIncrement && drizzleTypeInfo.type === 'integer') {
+          colDef += 'INTEGER'
+        } else if (drizzleTypeInfo.type === 'integer') {
+          colDef += 'INTEGER'
+        } else if (drizzleTypeInfo.type === 'real') {
+          colDef += 'REAL'
+        } else {
+          colDef += 'TEXT'
+        }
+        
+        // Add constraints
+        if (column.primaryKey && column.autoIncrement) {
+          colDef += ' PRIMARY KEY AUTOINCREMENT'
+        } else if (column.primaryKey) {
+          colDef += ' PRIMARY KEY'
+        }
+        
+        if (!column.nullable && !column.primaryKey) {
+          colDef += ' NOT NULL'
+        }
+        
+        if (column.unique && !column.primaryKey) {
+          colDef += ' UNIQUE'
+        }
+        
+        columnDefs.push(colDef)
+      })
+      
+      sql += columnDefs.join(',\n')
+      sql += '\n);\n\n'
+    })
+    
+    // Add indexes for foreign keys (from relations)
+    relations.value.forEach(relation => {
+      // Only create indexes for one-to-one and one-to-many (not many-to-many)
+      if (relation.type === 'many-to-many') return
+      
+      const toTable = tables.value.find(t => t.id === relation.toTableId)
+      const toColumn = toTable?.columns.find(c => c.id === relation.toColumnId)
+      
+      if (toTable && toColumn) {
+        const indexName = `idx_${toTable.name}_${toColumn.name}`
+        sql += `CREATE INDEX IF NOT EXISTS "${indexName}" ON "${toTable.name}" ("${toColumn.name}");\n`
+      }
+    })
+    
+    return sql
+  }
+
   // Map Drizzle SQLite types back to internal types
   const mapDrizzleTypeToInternal = (drizzleType: string): string => {
     const typeMap: Record<string, string> = {
@@ -1394,6 +1459,7 @@ export function useSchemaProvider() {
     autoArrange,
     exportToDrizzle,
     exportToOpenApiJson,
+    exportToSql,
     importFromDrizzle,
     newEmptySchema,
     saveDatabase,

@@ -14,6 +14,11 @@ useSchemaProvider()
 useTheme()
 
 const showChat = ref(false)
+const canvasZoom = ref(1)
+
+const handleZoomChange = (zoom: number) => {
+  canvasZoom.value = zoom
+}
 </script>
 
 <template>
@@ -27,12 +32,12 @@ const showChat = ref(false)
     </header>
 
     <!-- Toolbar -->
-    <Toolbar :chat-open="showChat" @toggle-chat="showChat = !showChat" />
+    <Toolbar :chat-open="showChat" :zoom="canvasZoom" @toggle-chat="showChat = !showChat" />
 
     <!-- Canvas -->
     <main class="flex-1 overflow-hidden flex">
       <div class="flex-1 overflow-hidden">
-        <SchemaCanvas />
+        <SchemaCanvas @zoom-change="handleZoomChange" />
       </div>
       <ChatAside v-if="showChat" @close="showChat = false" />
     </main>

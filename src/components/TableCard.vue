@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, inject } from 'vue'
+import { ref, inject, computed } from 'vue'
 import { useSchema } from '../composables/useSchema'
 import type { Table, Column } from '../types/schema'
 import type { Ref } from 'vue'
@@ -8,7 +8,7 @@ const props = defineProps<{
   table: Table
 }>()
 
-const { updateTable, saveTablePosition, deleteTable, addColumn, updateColumn, saveColumnChanges, deleteColumn, startDrag, endDrag, updateDragPreview, isDragging: isRelationDragging, dragSource, hoveredColumn, setHoveredColumn, relations, selectedTableIds } = useSchema()
+const { updateTable, saveTablePosition, deleteTable, addColumn, updateColumn, saveColumnChanges, deleteColumn, startDrag, endDrag, updateDragPreview, isDragging: isRelationDragging, dragSource, hoveredColumn, setHoveredColumn, relations, selectedTableIds, tables } = useSchema()
 
 // Get zoom and panOffset from parent canvas
 const zoom = inject<Ref<number>>('canvasZoom', ref(1))
@@ -450,6 +450,69 @@ const handleColumnClick = (e: MouseEvent, column: Column) => {
   
   columnMouseDownPos.value = null
 }
+
+// Calculate table hierarchy level based on relations
+// Level 0 = root tables (no incoming relations)
+// Level 1+ = tables that reference other tables
+const getTableHierarchyLevel = (tableId: string, visited: Set<string> = new Set(), depth: number = 0): number => {
+  // Prevent infinite loops from circular references (max depth of 10)
+  if (visited.has(tableId) || depth > 10) {
+    return 0
+  }
+  
+  visited.add(tableId)
+  
+  // Build a map of incoming relations (which tables reference this table)
+  // Exclude many-to-many as they don't have clear hierarchy
+  const incomingRelations = relations.value.filter(r => r.toTableId === tableId && r.type !== 'many-to-many')
+  
+  if (incomingRelations.length === 0) {
+    return 0 // Root table
+  }
+  
+  // Find the maximum depth of tables that reference this table
+  let maxDepth = 0
+  for (const rel of incomingRelations) {
+    const parentDepth = getTableHierarchyLevel(rel.fromTableId, new Set(visited), depth + 1)
+    maxDepth = Math.max(maxDepth, parentDepth)
+  }
+  
+  return maxDepth + 1
+}
+
+// Compute hierarchy level reactively
+const hierarchyLevel = computed(() => getTableHierarchyLevel(props.table.id))
+
+// Get header color based on hierarchy level
+const getHeaderColorClass = computed(() => {
+  const level = hierarchyLevel.value
+  // Use a color gradient based on hierarchy depth
+  // Limit to 6 levels to avoid too many colors
+  const colors = [
+    'bg-blue-600',      // Level 0 - Blue
+    'bg-green-600',     // Level 1 - Green
+    'bg-purple-600',    // Level 2 - Purple
+    'bg-orange-600',    // Level 3 - Orange
+    'bg-pink-600',      // Level 4 - Pink
+    'bg-indigo-600',    // Level 5 - Indigo
+    'bg-teal-600'       // Level 6+ - Teal
+  ]
+  return colors[Math.min(level, colors.length - 1)]
+})
+
+const getHeaderHoverColorClass = computed(() => {
+  const level = hierarchyLevel.value
+  const colors = [
+    'hover:bg-blue-700',      // Level 0
+    'hover:bg-green-700',     // Level 1
+    'hover:bg-purple-700',    // Level 2
+    'hover:bg-orange-700',    // Level 3
+    'hover:bg-pink-700',      // Level 4
+    'hover:bg-indigo-700',    // Level 5
+    'hover:bg-teal-700'       // Level 6+
+  ]
+  return colors[Math.min(level, colors.length - 1)]
+})
 </script>
 
 <template>
@@ -470,7 +533,7 @@ const handleColumnClick = (e: MouseEvent, column: Column) => {
     @mousedown="handleMouseDown"
   >
     <!-- Table header -->
-    <div class="bg-blue-600 text-white px-4 py-3 rounded-t-lg flex items-center justify-between gap-2 min-w-0">
+    <div :class="[getHeaderColorClass, 'text-white px-4 py-3 rounded-t-lg flex items-center justify-between gap-2 min-w-0']">
       <div class="flex-1 min-w-0">
         <input
           id="table-name"
@@ -478,13 +541,13 @@ const handleColumnClick = (e: MouseEvent, column: Column) => {
           @input="handleUpdateTableName"
           @mousedown.stop
           aria-label="Table name"
-          class="no-drag bg-transparent border-none outline-none font-semibold text-lg w-full text-white placeholder-blue-200"
+          class="no-drag bg-transparent border-none outline-none font-semibold text-lg w-full text-white placeholder-white/70"
           placeholder="table_name"
         />
       </div>
       <button
         @click.stop="handleDeleteTable"
-        class="no-drag ml-2 p-1.5 hover:bg-blue-700 rounded transition-colors shrink-0 cursor-pointer"
+        :class="[getHeaderHoverColorClass, 'no-drag ml-2 p-1.5 rounded transition-colors shrink-0 cursor-pointer']"
         title="Delete table"
       >
         <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
