@@ -526,7 +526,7 @@ const handleWheel = (e: WheelEvent) => {
 <template>
   <div
     ref="canvasRef"
-    class="w-full h-full relative bg-gray-50 dark:bg-gray-900 overflow-hidden"
+    class="w-full h-full relative bg-gray-200 dark:bg-gray-900 overflow-hidden"
     :class="{
       'cursor-default': !isSelecting && !isPanning,
       'cursor-crosshair': isSelecting,
