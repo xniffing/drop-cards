@@ -1,12 +1,14 @@
 <script setup lang="ts">
-import { ref, provide, computed, watch } from 'vue'
+import { ref, provide, computed, watch, defineAsyncComponent } from 'vue'
 import { useSchema } from '../composables/useSchema'
 import TableCard from './TableCard.vue'
 import RelationLine from './RelationLine.vue'
-import RelationTypeModal from './RelationTypeModal.vue'
-import RelationEditor from './RelationEditor.vue'
-import ColumnConfigModal from './ColumnConfigModal.vue'
 import type { Relation, Column } from '../types/schema'
+
+// Lazy load modal components that are conditionally rendered
+const RelationTypeModal = defineAsyncComponent(() => import('./RelationTypeModal.vue'))
+const RelationEditor = defineAsyncComponent(() => import('./RelationEditor.vue'))
+const ColumnConfigModal = defineAsyncComponent(() => import('./ColumnConfigModal.vue'))
 
 const { tables, relations, isDragging, dragSource, dragPreview, addRelation, validateRelation, selectedRelationId, deselectRelation, updateDragPreview, updateColumn, saveColumnChanges, selectedTableIds, selectTables, clearSelection, updateTable } = useSchema()
 
@@ -397,10 +399,12 @@ const getRelationPosition = computed(() => {
   const inputsRowHeight = 48
   const columnGroupHeight = labelsRowHeight + inputsRowHeight
   
+  // Align to center of inputs row (attributes), matching RelationLine calculation
+  // Adjusted up by 10px for better visual alignment
   const fromY = fromTablePos.y + headerHeight + padding + 
-    (fromColumnIndex * columnGroupHeight) + labelsRowHeight + (inputsRowHeight / 2) + 10
+    (fromColumnIndex * columnGroupHeight) + labelsRowHeight + (inputsRowHeight / 2) - 10
   const toY = toTablePos.y + headerHeight + padding + 
-    (toColumnIndex * columnGroupHeight) + labelsRowHeight + (inputsRowHeight / 2) + 10
+    (toColumnIndex * columnGroupHeight) + labelsRowHeight + (inputsRowHeight / 2) - 10
   
   const fromX = fromTablePos.x + fromTableWidth
   const toX = toTablePos.x
@@ -458,9 +462,10 @@ const getDragPreviewPath = computed(() => {
   const columnIndex = sourceTable.columns.findIndex(c => c.id === dragSource.value!.columnId)
   
   // Calculate source column position (right edge of table) - matching RelationLine calculation
+  // Adjusted up by 10px for better visual alignment
   const sourceX = sourceTable.position.x + tableWidth
   const sourceY = sourceTable.position.y + headerHeight + padding + 
-    (columnIndex * columnGroupHeight) + labelsRowHeight + (inputsRowHeight / 2) + 10
+    (columnIndex * columnGroupHeight) + labelsRowHeight + (inputsRowHeight / 2) - 10
   
   return `M ${sourceX} ${sourceY} L ${dragPreview.value.x} ${dragPreview.value.y}`
 })

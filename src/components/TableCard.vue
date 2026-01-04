@@ -8,7 +8,7 @@ const props = defineProps<{
   table: Table
 }>()
 
-const { updateTable, saveTablePosition, deleteTable, addColumn, updateColumn, saveColumnChanges, deleteColumn, startDrag, endDrag, updateDragPreview, isDragging: isRelationDragging, dragSource, hoveredColumn, setHoveredColumn, relations, selectedTableIds, tables } = useSchema()
+const { updateTable, saveTablePosition, deleteTable, addColumn, updateColumn, saveColumnChanges, deleteColumn, startDrag, endDrag, updateDragPreview, isDragging: isRelationDragging, dragSource, hoveredColumn, setHoveredColumn, relations, selectedTableIds } = useSchema()
 
 // Get zoom and panOffset from parent canvas
 const zoom = inject<Ref<number>>('canvasZoom', ref(1))
@@ -237,8 +237,10 @@ const handleColumnDragOver = (e: DragEvent, columnId: string) => {
   const columnGroupHeight = labelsRowHeight + inputsRowHeight
   
   // Calculate target column Y position (left edge, center of inputs row)
+  // Align to center of inputs row (attributes), matching RelationLine calculation
+  // Adjusted up by 10px for better visual alignment
   const targetY = props.table.position.y + headerHeight + padding + 
-    (columnIndex * columnGroupHeight) + labelsRowHeight + (inputsRowHeight / 2) + 10
+    (columnIndex * columnGroupHeight) + labelsRowHeight + (inputsRowHeight / 2) - 10
   const targetX = props.table.position.x // left edge of table
   
   updateDragPreview({ x: targetX, y: targetY })

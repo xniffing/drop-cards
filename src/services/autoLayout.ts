@@ -1,4 +1,3 @@
-import ELK from 'elkjs/lib/elk.bundled.js'
 import type { Relation, Table } from '../types/schema'
 
 export type LayoutPositions = Record<string, { x: number; y: number }>
@@ -59,6 +58,9 @@ export async function computeElkLayout(
     return positions
   }
 
+  // Lazy load elkjs only when needed (it's a large library ~1.5MB)
+  const elkjsModule = await import('elkjs/lib/elk.bundled.js')
+  const ELK = elkjsModule.default || elkjsModule
   const elk = new ELK()
 
   const children = tables.map(t => ({

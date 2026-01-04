@@ -1,11 +1,13 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, defineAsyncComponent } from 'vue'
 import SchemaCanvas from './components/SchemaCanvas.vue'
 import Toolbar from './components/Toolbar.vue'
-import DebugPanel from './components/DebugPanel.vue'
-import ChatAside from './components/ChatAside.vue'
 import { useSchemaProvider } from './composables/useSchema'
 import { useTheme } from './composables/useTheme'
+
+// Lazy load components that aren't needed immediately
+const ChatAside = defineAsyncComponent(() => import('./components/ChatAside.vue'))
+const DebugPanel = defineAsyncComponent(() => import('./components/DebugPanel.vue'))
 
 // Initialize schema provider
 useSchemaProvider()

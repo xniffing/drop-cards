@@ -37,26 +37,27 @@ const path = computed(() => {
   const toColumnIndex = toTable.value.columns.findIndex(c => c.id === props.relation.toColumnId)
 
   // Calculate column positions accurately based on actual layout:
-  // Header: py-3 (12px) + label mb-1 (4px) + label text (~16px) + input text-lg (~24px) + py-3 bottom (12px) ≈ 68px
+  // Header: py-3 (12px) + text-lg (~24px) + py-3 bottom (12px) ≈ 68px
   // Columns container: p-3 (12px padding)
   // Each column group:
-  //   - Labels row: mb-1 (4px) + label text-xs (~16px) = 20px
+  //   - Labels row: mb-1 (4px) + label text-xs (~16px) = 20px (if present)
   //   - Inputs row: py-2 (8px top) + h-8 (32px) + py-2 (8px bottom) = 48px
-  //   Total per column: 20 + 48 = 68px
+  //   Total per column: 20 + 48 = 68px (with labels) or 48px (without labels)
   
-  const headerHeight = 68 // More accurate header height
+  const headerHeight = 68 // Header height
   const padding = 12 // p-3
-  const labelsRowHeight = 20 // mb-1 (4px) + label height (~16px)
+  const labelsRowHeight = 20 // mb-1 (4px) + label height (~16px) - may be 0 if labels removed
   const inputsRowHeight = 48 // py-2 (16px) + h-8 (32px)
-  const columnGroupHeight = labelsRowHeight + inputsRowHeight // 68px per column
+  const columnGroupHeight = labelsRowHeight + inputsRowHeight // 68px per column (with labels)
   
   // Calculate Y position: header + padding + (for each column: labels + inputs/2)
   // We want the center of the inputs row for each column
-  // Adjusted by 10px down for better alignment
+  // Align to center of inputs row (attributes), accounting for labels row if present
+  // Adjusted up by 10px for better visual alignment
   const fromY = fromTablePos.y + headerHeight + padding + 
-    (fromColumnIndex * columnGroupHeight) + labelsRowHeight + (inputsRowHeight / 2) + 10
+    (fromColumnIndex * columnGroupHeight) + labelsRowHeight + (inputsRowHeight / 2) - 10
   const toY = toTablePos.y + headerHeight + padding + 
-    (toColumnIndex * columnGroupHeight) + labelsRowHeight + (inputsRowHeight / 2) + 10
+    (toColumnIndex * columnGroupHeight) + labelsRowHeight + (inputsRowHeight / 2) - 10
   
   // X positions: right edge of source table, left edge of target table
   const fromX = fromTablePos.x + fromTableWidth
