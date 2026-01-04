@@ -653,24 +653,26 @@ export function useSchemaProvider() {
     return { valid: true }
   }
 
-  // Map column types to Drizzle types
+  // Map column types to Drizzle SQLite types
   const mapColumnTypeToDrizzle = (type: string): { type: string; needsLength?: boolean } => {
     const typeMap: Record<string, { type: string; needsLength?: boolean }> = {
       integer: { type: 'integer' },
-      varchar: { type: 'varchar', needsLength: true },
+      varchar: { type: 'text' }, // SQLite treats varchar as text
       text: { type: 'text' },
-      boolean: { type: 'boolean' },
-      timestamp: { type: 'timestamp' },
-      date: { type: 'date' },
-      json: { type: 'jsonb' }
+      boolean: { type: 'integer' }, // SQLite uses integer for boolean (0/1)
+      timestamp: { type: 'integer' }, // SQLite uses integer for timestamps (Unix time)
+      date: { type: 'text' }, // SQLite uses text for dates (ISO format)
+      json: { type: 'text' }, // SQLite stores JSON as text
+      decimal: { type: 'real' } // SQLite uses REAL for decimal/floating point numbers
     }
     return typeMap[type] || { type: 'text' }
   }
 
-  // Generate Drizzle schema code
+  // Generate Drizzle schema code for D1 (SQLite)
   const exportToDrizzle = (): string => {
-    let code = "import { pgTable, text, integer, boolean, timestamp, date, jsonb, varchar, serial } from 'drizzle-orm/pg-core'\n"
-    code += "import { relations } from 'drizzle-orm'\n\n"
+    let code = "import { sqliteTable, text, integer, real } from 'drizzle-orm/sqlite-core'\n"
+    code += "import { relations } from 'drizzle-orm'\n"
+    code += "import { sql } from 'drizzle-orm'\n\n"
 
     // Generate table definitions
     const tableDefinitions: string[] = []
@@ -681,36 +683,42 @@ export function useSchemaProvider() {
       const tableVarName = tableName.replace(/[^a-zA-Z0-9]/g, '_')
       tableVarMap[table.id] = tableVarName
       
-      let tableDef = `export const ${tableVarName} = pgTable('${tableName}', {\n`
+      let tableDef = `export const ${tableVarName} = sqliteTable('${tableName}', {\n`
       
       table.columns.forEach(column => {
         const columnName = column.name
         const drizzleTypeInfo = mapColumnTypeToDrizzle(column.type)
         let columnDef = `  ${columnName}: `
         
-        // Use serial for auto-increment integers
+        // Handle auto-increment integers (SQLite pattern)
         if (column.autoIncrement && drizzleTypeInfo.type === 'integer') {
-          columnDef += 'serial'
-        } else if (drizzleTypeInfo.needsLength && drizzleTypeInfo.type === 'varchar') {
-          columnDef += `varchar('${columnName}', { length: 255 })`
+          columnDef += `integer('${columnName}', { mode: 'number' }).primaryKey({ autoIncrement: true })`
+        } else if (drizzleTypeInfo.type === 'integer') {
+          columnDef += `integer('${columnName}', { mode: 'number' })`
+        } else if (drizzleTypeInfo.type === 'real') {
+          columnDef += `real('${columnName}')`
         } else {
-          columnDef += `${drizzleTypeInfo.type}('${columnName}')`
+          // text, varchar (treated as text in SQLite)
+          columnDef += `text('${columnName}')`
         }
         
-        // Add column modifiers
-        const modifiers: string[] = []
+        // Add column modifiers (only if not already handled by auto-increment)
+        if (!(column.autoIncrement && drizzleTypeInfo.type === 'integer')) {
+          const modifiers: string[] = []
+          
+          if (column.primaryKey) {
+            modifiers.push('.primaryKey()')
+          }
+          if (!column.nullable) {
+            modifiers.push('.notNull()')
+          }
+          if (column.unique) {
+            modifiers.push('.unique()')
+          }
+          
+          columnDef += modifiers.join('')
+        }
         
-        if (column.primaryKey && !column.autoIncrement) {
-          modifiers.push('.primaryKey()')
-        }
-        if (!column.nullable) {
-          modifiers.push('.notNull()')
-        }
-        if (column.unique) {
-          modifiers.push('.unique()')
-        }
-        
-        columnDef += modifiers.join('')
         tableDef += columnDef + ',\n'
       })
       
@@ -743,7 +751,7 @@ export function useSchemaProvider() {
         if (outgoingRelations.length > 0 || incomingRelations.length > 0) {
           code += `export const ${tableVarName}Relations = relations(${tableVarName}, ({ one, many }) => ({\n`
           
-          // Outgoing relations (one-to-many, one-to-one)
+          // Outgoing relations (one-to-many, one-to-one, many-to-many)
           outgoingRelations.forEach(relation => {
             const toTable = tables.value.find(t => t.id === relation.toTableId)
             if (!toTable) return
@@ -758,13 +766,21 @@ export function useSchemaProvider() {
             
             const relationName = toTableVar.charAt(0).toLowerCase() + toTableVar.slice(1) + (relation.type === 'many-to-many' ? 's' : '')
             
+            // Add comment to preserve relation type for round-trip
+            if (relation.type === 'many-to-many') {
+              code += `  // Relation type: many-to-many\n`
+            }
+            
             if (relation.type === 'one-to-one') {
               code += `  ${relationName}: one(${toTableVar}, {\n`
               code += `    fields: [${tableVarName}.${fromColumn.name}],\n`
               code += `    references: [${toTableVar}.${toColumn.name}],\n`
               code += `  }),\n`
+            } else if (relation.type === 'one-to-many') {
+              // One-to-many: use many() on the "many" side
+              code += `  ${relationName}: many(${toTableVar}),\n`
             } else {
-              // one-to-many or many-to-many
+              // Many-to-many: use many() without fields/references
               code += `  ${relationName}: many(${toTableVar}),\n`
             }
           })
@@ -784,12 +800,19 @@ export function useSchemaProvider() {
             
             const relationName = fromTableVar.charAt(0).toLowerCase() + fromTableVar.slice(1)
             
+            // Add comment to preserve relation type for round-trip
+            if (relation.type === 'many-to-many') {
+              code += `  // Relation type: many-to-many\n`
+            }
+            
             if (relation.type === 'one-to-one' || relation.type === 'one-to-many') {
+              // One-to-one and one-to-many: use one() with fields/references on the "belongs to" side
               code += `  ${relationName}: one(${fromTableVar}, {\n`
               code += `    fields: [${tableVarName}.${toColumn.name}],\n`
               code += `    references: [${fromTableVar}.${fromColumn.name}],\n`
               code += `  }),\n`
             }
+            // Note: many-to-many relations don't have incoming "one()" definitions
           })
           
           code += '}))\n\n'
@@ -808,18 +831,17 @@ export function useSchemaProvider() {
     return generateOpenApiJson(schema)
   }
 
-  // Map Drizzle types back to internal types
+  // Map Drizzle SQLite types back to internal types
   const mapDrizzleTypeToInternal = (drizzleType: string): string => {
     const typeMap: Record<string, string> = {
       integer: 'integer',
-      serial: 'integer',
-      varchar: 'varchar',
       text: 'text',
-      decimal: 'decimal',
-      boolean: 'boolean',
-      timestamp: 'timestamp',
-      date: 'date',
-      jsonb: 'json'
+      varchar: 'varchar', // Keep varchar for display even though SQLite treats it as text
+      boolean: 'boolean', // Map back to boolean even though SQLite uses integer
+      timestamp: 'timestamp', // Map back to timestamp even though SQLite uses integer
+      date: 'date', // Map back to date even though SQLite uses text
+      real: 'decimal', // SQLite real type
+      blob: 'text' // SQLite blob as text
     }
     return typeMap[drizzleType] || 'text'
   }
@@ -836,6 +858,12 @@ export function useSchemaProvider() {
         fromColumnName: string // referenced column prop
         toTableVar: string // referencing table var
         toColumnName: string // fk column prop on referencing table
+      }> = []
+      // Track many() relations without fields/references for many-to-many detection
+      const manyOnlyRelations: Array<{
+        fromTableVar: string
+        toTableVar: string
+        relationName: string
       }> = []
       
       // Reset counters
@@ -1014,8 +1042,8 @@ export function useSchemaProvider() {
         }
       }
 
-      // Tables: export const users = pgTable('users', { ... });
-      const tableStartRegex = /export\s+const\s+(\w+)\s*=\s*pgTable\s*\(/g
+      // Tables: export const users = sqliteTable('users', { ... });
+      const tableStartRegex = /export\s+const\s+(\w+)\s*=\s*sqliteTable\s*\(/g
       let tableStart: RegExpExecArray | null
       while ((tableStart = tableStartRegex.exec(code)) !== null) {
         const tableVar = tableStart[1]
@@ -1057,16 +1085,16 @@ export function useSchemaProvider() {
           const baseType = baseTypeMatch?.[1]
           if (!baseType) continue
 
-          const isSerial = baseType === 'serial'
-          const isPrimaryKey = /\.primaryKey\(\)/.test(expr) || isSerial
-          const isNotNull = /\.notNull\(\)/.test(expr) || isSerial
+          // Check for SQLite auto-increment pattern: integer('name', { mode: 'number' }).primaryKey({ autoIncrement: true })
+          const isAutoIncrement = /\.primaryKey\(\s*\{\s*autoIncrement:\s*true\s*\}\s*\)/.test(expr) || 
+                                  /autoIncrement:\s*true/.test(expr)
+          const isPrimaryKey = /\.primaryKey\(/.test(expr) || isAutoIncrement
+          const isNotNull = /\.notNull\(\)/.test(expr) || isPrimaryKey
           const isUnique = /\.unique\(\)/.test(expr)
 
           const colType = enumVarMap[baseType]
             ? `enum:${enumVarMap[baseType].enumName}`
-            : isSerial
-              ? 'integer'
-              : mapDrizzleTypeToInternal(baseType)
+            : mapDrizzleTypeToInternal(baseType)
 
           const column: Column = {
             id: `col-${++columnCounter}`,
@@ -1075,7 +1103,7 @@ export function useSchemaProvider() {
             nullable: !isNotNull,
             primaryKey: isPrimaryKey,
             unique: isUnique,
-            autoIncrement: isSerial
+            autoIncrement: isAutoIncrement
           }
           columns.push(column)
 
@@ -1109,7 +1137,7 @@ export function useSchemaProvider() {
       }
 
       if (newTables.length === 0) {
-        return { success: false, error: 'No tables found in schema. Make sure tables are defined with pgTable()' }
+        return { success: false, error: 'No tables found in schema. Make sure tables are defined with sqliteTable()' }
       }
 
       // Resolve relations declared via inline .references(() => otherTable.otherColumn)
@@ -1126,6 +1154,8 @@ export function useSchemaProvider() {
         const toCol = toTable.columns.find(c => c.name === pending.toColumnName)
         if (!fromCol || !toCol) continue
 
+        // Improved inference: check both columns for uniqueness
+        // If FK column is unique, it's one-to-one; otherwise one-to-many
         const relationType: Relation['type'] = toCol.unique ? 'one-to-one' : 'one-to-many'
         addRelationIfMissing({
           fromTableId: fromTable.id,
@@ -1155,6 +1185,10 @@ export function useSchemaProvider() {
         const baseTable = newTables.find(t => t.id === baseTableInfo.tableId)
         if (!baseTable) continue
 
+        // Check for relation type comment before parsing
+        const relationTypeCommentMatch = argsText.match(/\/\/\s*Relation\s+type:\s*(one-to-one|one-to-many|many-to-many)/i)
+        const commentRelationType = relationTypeCommentMatch?.[1] as Relation['type'] | undefined
+
         // one(target, { fields: [base.col], references: [target.col] })
         const oneRegex =
           /one\(\s*(\w+)\s*,\s*\{\s*fields:\s*\[\s*(\w+)\.(\w+)\s*\]\s*,\s*references:\s*\[\s*(\w+)\.(\w+)\s*\]\s*\}\s*\)/g
@@ -1180,7 +1214,8 @@ export function useSchemaProvider() {
           const refCol = referencedTable.columns.find(c => c.name === refColProp)
           if (!fkCol || !refCol) continue
 
-          const relationType: Relation['type'] = fkCol.unique ? 'one-to-one' : 'one-to-many'
+          // Use comment type if available, otherwise infer from column uniqueness
+          const relationType: Relation['type'] = commentRelationType || (fkCol.unique ? 'one-to-one' : 'one-to-many')
           addRelationIfMissing({
             fromTableId: referencedTable.id,
             fromColumnId: refCol.id,
@@ -1190,7 +1225,7 @@ export function useSchemaProvider() {
           })
         }
 
-        // many(targetTable) — heuristic only (prefer .references / one() above)
+        // many(targetTable) — could be one-to-many or many-to-many
         const manyRegex = /many\(\s*(\w+)\s*\)/g
         let manyMatch: RegExpExecArray | null
         while ((manyMatch = manyRegex.exec(argsText)) !== null) {
@@ -1202,6 +1237,15 @@ export function useSchemaProvider() {
           const targetTable = newTables.find(t => t.id === targetInfo.tableId)
           if (!targetTable) continue
 
+          // Check if this is a many-to-many (no fields/references, just many())
+          // Store for later processing to check reverse relation
+          manyOnlyRelations.push({
+            fromTableVar: baseTableVar,
+            toTableVar: targetVar,
+            relationName: ''
+          })
+
+          // Try to find FK column for one-to-many relations
           const fromPK = baseTable.columns.find(c => c.primaryKey) || baseTable.columns[0]
           if (!fromPK) continue
 
@@ -1212,15 +1256,70 @@ export function useSchemaProvider() {
             targetTable.columns.find(c => c.name.toLowerCase().includes(singular) && c.name.toLowerCase().endsWith('id')) ||
             targetTable.columns.find(c => c.name.toLowerCase().endsWith('id'))
 
-          if (!fkCandidate) continue
+          if (fkCandidate) {
+            // Has FK column, likely one-to-many (unless comment says otherwise)
+            const relationType: Relation['type'] = commentRelationType || (fkCandidate.unique ? 'one-to-one' : 'one-to-many')
+            addRelationIfMissing({
+              fromTableId: baseTable.id,
+              fromColumnId: fromPK.id,
+              toTableId: targetTable.id,
+              toColumnId: fkCandidate.id,
+              type: relationType
+            })
+          } else if (commentRelationType === 'many-to-many') {
+            // Many-to-many without explicit FK (requires junction table in real schema, but we'll create a relation)
+            // Use first column of each table as placeholder
+            const fromCol = baseTable.columns[0]
+            const toCol = targetTable.columns[0]
+            if (fromCol && toCol) {
+              addRelationIfMissing({
+                fromTableId: baseTable.id,
+                fromColumnId: fromCol.id,
+                toTableId: targetTable.id,
+                toColumnId: toCol.id,
+                type: 'many-to-many'
+              })
+            }
+          }
+        }
+      }
 
-          addRelationIfMissing({
-            fromTableId: baseTable.id,
-            fromColumnId: fromPK.id,
-            toTableId: targetTable.id,
-            toColumnId: fkCandidate.id,
-            type: fkCandidate.unique ? 'one-to-one' : 'one-to-many'
-          })
+      // Detect many-to-many relations: if both sides have many() without fields/references
+      // Check reverse relations to see if they also use many() without explicit FK
+      for (const manyRel of manyOnlyRelations) {
+        const fromInfo = tableVarMap[manyRel.fromTableVar]
+        const toInfo = tableVarMap[manyRel.toTableVar]
+        if (!fromInfo || !toInfo) continue
+
+        // Check if reverse relation also exists as many() without fields/references
+        const reverseManyExists = manyOnlyRelations.some(
+          r => r.fromTableVar === manyRel.toTableVar && r.toTableVar === manyRel.fromTableVar
+        )
+
+        // Check if relation already exists (from one() or .references())
+        const fromTable = newTables.find(t => t.id === fromInfo.tableId)
+        const toTable = newTables.find(t => t.id === toInfo.tableId)
+        if (!fromTable || !toTable) continue
+
+        const existingRelation = newRelations.find(
+          r =>
+            (r.fromTableId === fromTable.id && r.toTableId === toTable.id) ||
+            (r.fromTableId === toTable.id && r.toTableId === fromTable.id)
+        )
+
+        // If both sides have many() and no existing relation with fields/references, it's many-to-many
+        if (reverseManyExists && !existingRelation) {
+          const fromCol = fromTable.columns.find(c => c.primaryKey) || fromTable.columns[0]
+          const toCol = toTable.columns.find(c => c.primaryKey) || toTable.columns[0]
+          if (fromCol && toCol) {
+            addRelationIfMissing({
+              fromTableId: fromTable.id,
+              fromColumnId: fromCol.id,
+              toTableId: toTable.id,
+              toColumnId: toCol.id,
+              type: 'many-to-many'
+            })
+          }
         }
       }
 

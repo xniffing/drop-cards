@@ -158,6 +158,7 @@ const handleWheel = (e: WheelEvent) => {
               <option value="integer">integer</option>
               <option value="varchar">varchar</option>
               <option value="text">text</option>
+              <option value="decimal">decimal</option>
               <option value="boolean">boolean</option>
               <option value="timestamp">timestamp</option>
               <option value="date">date</option>

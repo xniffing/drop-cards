@@ -1,12 +1,17 @@
 # Drizzle Schema Designer
 
-A visual database schema designer for Drizzle ORM. Create and manage database schemas with an intuitive drag-and-drop interface.
+A visual database schema designer for Drizzle ORM with Cloudflare D1 (SQLite) support. Create and manage database schemas with an intuitive drag-and-drop interface.
 
 ## Features
 
 - **Drag & Drop Tables**: Create tables and position them freely on the canvas
 - **Column Management**: Add, edit, and delete columns with various data types
-- **Visual Relations**: Connect tables to visualize relationships (coming soon)
+- **Visual Relations**: Connect tables to visualize relationships (one-to-one, one-to-many, many-to-many)
+- **D1/SQLite Support**: Generate and import Drizzle schemas for Cloudflare D1
+- **Export/Import**: Export to Drizzle schema code or import existing schemas
+- **AI-Powered**: Use AI chat to generate schemas from natural language descriptions
+- **Undo/Redo**: Full history support for schema changes
+- **Auto-Layout**: Automatically arrange tables for better visualization
 - **Clean Interface**: Simple, modern UI built with Vue 3 and Tailwind CSS 4
 
 ## Tech Stack
@@ -51,10 +56,16 @@ npm run build
 1. **Add Table**: Click the "Add Table" button in the toolbar to create a new table
 2. **Edit Table Name**: Click on the table name to edit it
 3. **Add Columns**: Click "Add Column" button within a table card
-4. **Edit Columns**: Click on column names or types to modify them
-5. **Move Tables**: Drag tables around the canvas to organize your schema
-6. **Pan Canvas**: Click and drag on the empty canvas area to pan the view
-7. **Delete Items**: Use the delete buttons to remove tables or columns
+4. **Edit Columns**: Click on column names or types to modify them, or use the column config button for advanced options
+5. **Create Relations**: Drag from a column in one table to a column in another table to create relationships
+6. **Edit Relations**: Click on a relation line to edit its type (one-to-one, one-to-many, many-to-many)
+7. **Move Tables**: Drag tables around the canvas to organize your schema
+8. **Pan Canvas**: Middle-click and drag, or click and drag on empty canvas area to pan the view
+9. **Zoom**: Use mouse wheel to zoom in/out
+10. **Export Schema**: Click "Export" in the toolbar to copy Drizzle schema code
+11. **Import Schema**: Click "Import" to paste and import existing Drizzle schema code
+12. **AI Chat**: Use the chat panel to generate schemas from natural language descriptions
+13. **Delete Items**: Use the delete buttons to remove tables, columns, or relations
 
 ## Project Structure
 
@@ -76,13 +87,16 @@ src/
 
 - [x] Basic drag-and-drop functionality
 - [x] Table and column management
-- [ ] Create relations between tables by dragging
-- [ ] Different relation types (one-to-one, one-to-many, many-to-many)
-- [ ] Export to Drizzle schema code
-- [ ] Import existing schemas
-- [ ] Undo/redo functionality
+- [x] Create relations between tables by dragging
+- [x] Different relation types (one-to-one, one-to-many, many-to-many)
+- [x] Export to Drizzle schema code (D1/SQLite)
+- [x] Import existing schemas
+- [x] Undo/redo functionality
+- [x] Dark mode
+- [x] Auto-layout for tables
+- [x] AI-powered schema generation
 - [ ] Schema validation
-- [ ] Dark mode
+- [ ] Database management (save/load multiple schemas)
 
 ## License
 

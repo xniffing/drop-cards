@@ -160,7 +160,7 @@ function buildTableSchemas(table: Table) {
 
 function getSinglePrimaryKey(table: Table): Column | null {
   const pks = table.columns.filter(c => c.primaryKey)
-  return pks.length === 1 ? pks[0] : null
+  return pks.length === 1 ? (pks[0] ?? null) : null
 }
 
 export function generateOpenApiDocument(schema: Schema): OpenApiDocument {

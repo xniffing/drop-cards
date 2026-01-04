@@ -31,16 +31,17 @@ const abortController = ref<AbortController | null>(null)
 
 const createId = () => `${Date.now()}-${Math.random().toString(16).slice(2)}`
 
-const systemPrompt = `You are helping design a PostgreSQL database schema and (when ready) generating a Drizzle ORM schema.
+const systemPrompt = `You are helping design a Cloudflare D1 (SQLite) database schema and (when ready) generating a Drizzle ORM schema.
 
 If you need clarification, ask follow-up questions in plain text.
 If you have enough information, return ONLY TypeScript code (no markdown, no explanations).
 
 Requirements:
-- Use pgTable(...) definitions with exports like: export const users = pgTable('users', { ... })
-- Use pg-core types: serial, integer, text, varchar, boolean, timestamp, date, jsonb
+- Use sqliteTable(...) definitions with exports like: export const users = sqliteTable('users', { ... })
+- Use sqlite-core types: integer, text, real
+- For auto-increment primary keys: integer('id', { mode: 'number' }).primaryKey({ autoIncrement: true })
 - For foreign keys, prefer inline references so relations can be inferred:
-  userId: integer('user_id').notNull().references(() => users.id)
+  userId: integer('user_id', { mode: 'number' }).notNull().references(() => users.id)
 - Keep column property names valid identifiers (camelCase recommended) and consistent with references.
 - Include primary keys and notNull where appropriate.
 - When refining an existing schema, output the FULL updated schema (not a diff).
@@ -60,7 +61,7 @@ const extractDrizzleCode = (raw: string): string => {
 const looksLikeDrizzleSchema = (code: string): boolean => {
   const t = (code || '').trim()
   if (!t) return false
-  return t.includes('pgTable(') && /export\s+const\s+\w+\s*=/.test(t)
+  return t.includes('sqliteTable(') && /export\s+const\s+\w+\s*=/.test(t)
 }
 
 const buildConversationMessages = (): OpenRouterMessage[] => {
