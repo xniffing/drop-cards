@@ -28,8 +28,8 @@ const handleZoomChange = (zoom: number) => {
     <!-- Header -->
     <header class="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-3 flex items-center justify-between">
       <div class="flex items-center gap-3">
-        <h1 class="text-xl font-bold text-gray-900 dark:text-gray-100">AppsGoLocal DB Studio</h1>
-        <span class="text-sm text-gray-500 dark:text-gray-400">Visual database schema builder</span>
+        <h1 class="text-xl font-bold text-gray-900 dark:text-gray-100">AGL DB Studio</h1>
+        <span class="text-sm text-gray-500 dark:text-gray-400">Visual database schema builder for Cloudflare D1</span>
       </div>
     </header>
 

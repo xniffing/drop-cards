@@ -18,7 +18,7 @@ const emit = defineEmits<{
 }>()
 
 const addTable = inject<() => void>('addTable')
-const { undo, redo, canUndo, canRedo, autoArrange, isAutoArranging, exportToDrizzle, exportToOpenApiJson, exportToSql, importFromDrizzle, databases, currentDatabaseName, newEmptySchema, saveDatabase, loadDatabase, deleteDatabaseById, renameDatabase } = useSchema()
+const { undo, redo, canUndo, canRedo, autoArrange, isAutoArranging, exportToDrizzle, exportToOpenApiJson, exportToSql, importFromDrizzle, databases, currentDatabaseName, newEmptySchema, saveDatabase, loadDatabase, deleteDatabaseById, renameDatabase, exportSchemaToFile, importSchemaFromFile } = useSchema()
 const { themeMode, setThemeMode } = useTheme()
 
 const showThemeMenu = ref(false)
@@ -27,6 +27,7 @@ const showDatabaseModal = ref(false)
 const showHelpModal = ref(false)
 const showSqlModal = ref(false)
 const showExportMenu = ref(false)
+const fileInputRef = ref<HTMLInputElement | null>(null)
 
 const btnBase =
   'p-2 rounded-lg transition-colors flex items-center justify-center text-sm font-medium shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed relative'
@@ -200,6 +201,39 @@ const handleDatabaseNewEmpty = () => {
   if (!ok) return
   newEmptySchema()
   showDatabaseModal.value = false
+}
+
+const handleSaveToFile = () => {
+  const res = exportSchemaToFile()
+  if (!res.success) {
+    alert(`Failed to save schema: ${res.error || 'Unknown error'}`)
+  }
+}
+
+const handleLoadFromFile = () => {
+  if (fileInputRef.value) {
+    fileInputRef.value.click()
+  }
+}
+
+const handleFileInputChange = async (e: Event) => {
+  const target = e.target as HTMLInputElement
+  const file = target.files?.[0]
+  if (!file) return
+
+  // Reset input so same file can be selected again
+  target.value = ''
+
+  // Show confirmation dialog
+  const ok = confirm('Load schema from file? This will replace your current canvas.')
+  if (!ok) return
+
+  const res = await importSchemaFromFile(file)
+  if (res.success) {
+    alert('Schema loaded successfully!')
+  } else {
+    alert(`Failed to load schema: ${res.error || 'Unknown error'}`)
+  }
 }
 
 // Keyboard shortcuts
@@ -404,6 +438,28 @@ onUnmounted(() => {
       <div :class="dividerClass"></div>
 
       <button
+        @click="handleSaveToFile"
+        :class="btnPrimaryIndigo"
+        type="button"
+        title="Save schema to file"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+        </svg>
+      </button>
+
+      <button
+        @click="handleLoadFromFile"
+        :class="btnPrimaryIndigo"
+        type="button"
+        title="Load schema from file"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+        </svg>
+      </button>
+
+      <button
         @click="handleDatabases"
         :class="btnPrimaryIndigo"
         type="button"
@@ -544,6 +600,15 @@ onUnmounted(() => {
       :open="showSqlModal"
       :sql="exportToSql()"
       @cancel="handleSqlCancel"
+    />
+
+    <!-- Hidden file input for loading schema -->
+    <input
+      ref="fileInputRef"
+      type="file"
+      accept=".json"
+      style="display: none"
+      @change="handleFileInputChange"
     />
   </div>
 </template>

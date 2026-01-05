@@ -1418,6 +1418,109 @@ export function useSchemaProvider() {
     }
   }
 
+  const exportSchemaToFile = (): { success: boolean; error?: string } => {
+    try {
+      const schema = createSnapshot(tables.value, relations.value)
+      const json = JSON.stringify(schema, null, 2)
+      const blob = new Blob([json], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      
+      // Generate filename with current date
+      const date = new Date().toISOString().split('T')[0]
+      const filename = `schema-${date}.json`
+      
+      const a = document.createElement('a')
+      a.href = url
+      a.download = filename
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+      
+      return { success: true }
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to export schema to file'
+      }
+    }
+  }
+
+  const importSchemaFromFile = async (file: File): Promise<{ success: boolean; error?: string }> => {
+    try {
+      // Read file as text
+      const text = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = (e) => {
+          if (e.target?.result && typeof e.target.result === 'string') {
+            resolve(e.target.result)
+          } else {
+            reject(new Error('Failed to read file'))
+          }
+        }
+        reader.onerror = () => reject(new Error('Failed to read file'))
+        reader.readAsText(file)
+      })
+
+      // Parse JSON
+      let parsed: unknown
+      try {
+        parsed = JSON.parse(text)
+      } catch {
+        return { success: false, error: 'Invalid JSON file' }
+      }
+
+      // Validate structure
+      if (!parsed || typeof parsed !== 'object') {
+        return { success: false, error: 'Invalid schema format: must be an object' }
+      }
+
+      const schema = parsed as Record<string, unknown>
+      
+      if (!Array.isArray(schema.tables)) {
+        return { success: false, error: 'Invalid schema format: missing or invalid "tables" array' }
+      }
+
+      if (!Array.isArray(schema.relations)) {
+        return { success: false, error: 'Invalid schema format: missing or invalid "relations" array' }
+      }
+
+      // Basic validation of table structure
+      for (const table of schema.tables) {
+        if (!table || typeof table !== 'object') {
+          return { success: false, error: 'Invalid table structure' }
+        }
+        const t = table as Record<string, unknown>
+        if (typeof t.id !== 'string' || typeof t.name !== 'string' || !Array.isArray(t.columns)) {
+          return { success: false, error: 'Invalid table structure: missing required fields' }
+        }
+      }
+
+      // Basic validation of relation structure
+      for (const relation of schema.relations) {
+        if (!relation || typeof relation !== 'object') {
+          return { success: false, error: 'Invalid relation structure' }
+        }
+        const r = relation as Record<string, unknown>
+        if (typeof r.id !== 'string' || typeof r.fromTableId !== 'string' || 
+            typeof r.toTableId !== 'string' || typeof r.fromColumnId !== 'string' || 
+            typeof r.toColumnId !== 'string') {
+          return { success: false, error: 'Invalid relation structure: missing required fields' }
+        }
+      }
+
+      // Apply schema (we've validated it above, so safe to cast)
+      applySchema(schema as unknown as Schema)
+      
+      return { success: true }
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to import schema from file'
+      }
+    }
+  }
+
   const api = {
     tables,
     relations,
@@ -1465,7 +1568,9 @@ export function useSchemaProvider() {
     saveDatabase,
     loadDatabase,
     deleteDatabaseById,
-    renameDatabase
+    renameDatabase,
+    exportSchemaToFile,
+    importSchemaFromFile
   }
 
   provide(SCHEMA_KEY, api)

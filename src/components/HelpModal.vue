@@ -318,7 +318,19 @@ const sections = [
             </div>
 
             <div>
-              <h4 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">Import</h4>
+              <h4 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">Save & Load Files</h4>
+              <ul class="list-disc list-inside space-y-2 text-gray-600 dark:text-gray-400">
+                <li><strong class="text-gray-900 dark:text-gray-100">Save to File</strong> - Click the indigo save button to download your current schema as a JSON file</li>
+                <li>Files are saved with a date-stamped filename (e.g., <code class="bg-gray-100 dark:bg-gray-700 px-1 rounded">schema-2024-01-15.json</code>)</li>
+                <li><strong class="text-gray-900 dark:text-gray-100">Load from File</strong> - Click the indigo load button to import a previously saved schema JSON file</li>
+                <li>You'll be asked to confirm before replacing your current canvas</li>
+                <li>File format includes all tables, columns, relations, and positions</li>
+                <li>Useful for backing up your work or sharing schemas with others</li>
+              </ul>
+            </div>
+
+            <div>
+              <h4 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">Import Drizzle Code</h4>
               <ul class="list-disc list-inside space-y-2 text-gray-600 dark:text-gray-400">
                 <li>Click the <strong class="text-gray-900 dark:text-gray-100">Import</strong> button (purple icon)</li>
                 <li>Paste your Drizzle schema code (must use <code class="bg-gray-100 dark:bg-gray-700 px-1 rounded">sqliteTable()</code>)</li>
@@ -396,7 +408,8 @@ const sections = [
               <ul class="list-disc list-inside space-y-2 text-gray-600 dark:text-gray-400">
                 <li>Use <strong class="text-gray-900 dark:text-gray-100">Auto Arrange</strong> after importing a schema to automatically organize tables</li>
                 <li>Table header colors indicate hierarchy - root tables (no incoming relations) are blue</li>
-                <li>Save your work using the <strong class="text-gray-900 dark:text-gray-100">Databases</strong> button to create named snapshots</li>
+                <li>Save your work using the <strong class="text-gray-900 dark:text-gray-100">Databases</strong> button to create named snapshots (stored in browser localStorage)</li>
+                <li>Use <strong class="text-gray-900 dark:text-gray-100">Save to File</strong> to backup your schema or share it with others</li>
                 <li>Use the AI Chat to quickly generate common schema patterns</li>
               </ul>
             </div>
